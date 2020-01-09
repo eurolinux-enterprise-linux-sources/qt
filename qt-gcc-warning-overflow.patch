@@ -1,0 +1,13 @@
+diff -up qt-everywhere-opensource-src-4.8.5/src/corelib/tools/qstring.h.than qt-everywhere-opensource-src-4.8.5/src/corelib/tools/qstring.h
+diff -up qt-everywhere-opensource-src-4.8.5/src/sql/kernel/qsqldriver.cpp.than qt-everywhere-opensource-src-4.8.5/src/sql/kernel/qsqldriver.cpp
+--- qt-everywhere-opensource-src-4.8.5/src/sql/kernel/qsqldriver.cpp.than	2013-11-21 10:51:56.200161500 +0100
++++ qt-everywhere-opensource-src-4.8.5/src/sql/kernel/qsqldriver.cpp	2013-11-21 12:51:32.594269183 +0100
+@@ -530,7 +530,7 @@ QString QSqlDriver::sqlStatement(Stateme
+             s.clear();
+         } else {
+             vals.chop(2); // remove trailing comma
+-            s[s.length() - 2] = QLatin1Char(')');
++            s[uint(s.length()) - 2] = QLatin1Char(')');
+             s.append(QLatin1String("VALUES (")).append(vals).append(QLatin1Char(')'));
+         }
+         break; }

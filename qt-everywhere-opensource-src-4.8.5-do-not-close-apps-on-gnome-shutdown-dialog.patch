@@ -1,0 +1,42 @@
+diff --git a/src/gui/kernel/qapplication.cpp b/src/gui/kernel/qapplication.cpp
+index acb115f..5316c40 100644
+--- a/src/gui/kernel/qapplication.cpp
++++ b/src/gui/kernel/qapplication.cpp
+@@ -3525,21 +3525,24 @@ void QApplication::commitData(QSessionManager& manager )
+ {
+     emit commitDataRequest(manager);
+     if (manager.allowsInteraction()) {
+-        QWidgetList done;
+-        QWidgetList list = QApplication::topLevelWidgets();
+-        bool cancelled = false;
+-        for (int i = 0; !cancelled && i < list.size(); ++i) {
+-            QWidget* w = list.at(i);
+-            if (w->isVisible() && !done.contains(w)) {
+-                cancelled = !w->close();
+-                if (!cancelled)
+-                    done.append(w);
+-                list = QApplication::topLevelWidgets();
+-                i = -1;
++        const QString desktopEnv = qgetenv("XDG_CURRENT_DESKTOP");
++        if (!desktopEnv.startsWith(QLatin1String("GNOME"))) {
++            QWidgetList done;
++            QWidgetList list = QApplication::topLevelWidgets();
++            bool cancelled = false;
++            for (int i = 0; !cancelled && i < list.size(); ++i) {
++                QWidget* w = list.at(i);
++                if (w->isVisible() && !done.contains(w)) {
++                    cancelled = !w->close();
++                    if (!cancelled)
++                        done.append(w);
++                    list = QApplication::topLevelWidgets();
++                    i = -1;
++                }
+             }
++            if (cancelled)
++                manager.cancel();
+         }
+-        if (cancelled)
+-            manager.cancel();
+     }
+ }
+ 
