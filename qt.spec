@@ -26,7 +26,7 @@ Summary: Qt toolkit
 Name:    qt
 Epoch:   1
 Version: 4.8.7
-Release: 3%{?dist}
+Release: 4%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FTL and MIT
@@ -1328,9 +1328,14 @@ fi
 
 
 %changelog
+* Tue Jul 23 2019 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-4
+- Bump build version for RPM to not consider z-stream build as newer
+  Revert fix for font cache check in QFontEngineFT::recalcAdvances()
+  Resolves: bz#1684167
+
 * Thu Mar 21 2019 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-3
 - Revert fix for font cache check in QFontEngineFT::recalcAdvances()
-  Resolves: bz#1701744
+  Resolves: bz#1684167
 
 * Thu Sep 14 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-2
 - Update aarch64 patch
