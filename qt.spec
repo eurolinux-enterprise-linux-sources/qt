@@ -26,7 +26,7 @@ Summary: Qt toolkit
 Name:    qt
 Epoch:   1
 Version: 4.8.7
-Release: 2%{?dist}
+Release: 3%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FTL and MIT
@@ -172,6 +172,8 @@ Patch96: qt-everywhere-opensource-src-4.8.7-mips64.patch
 Patch97: qt-everywhere-opensource-src-4.8.7-gcc6.patch
 # support alsa-1.1.x
 Patch98: qt-everywhere-opensource-src-4.8.7-alsa-1.1.patch
+# Revert https://github.com/qt/qt/commit/80e3108f5cd1e1850ec81a21100d79a0946addd7
+Patch99: qt-everywhere-opensource-src-4.8.7-revert-font-cache-fix.patch
 
 # upstream patches
 # http://codereview.qt-project.org/#change,22006
@@ -596,6 +598,7 @@ rm -rf src/3rdparty/clucene
 %patch96 -p1 -b .mips64
 %patch97 -p1 -b .gcc6
 %patch98 -p1 -b .alsa1.1
+%patch99 -p1 -b .revert-font-cache-fix
 
 # upstream patches
 %patch100 -p1 -b .QTgaHandler
@@ -1325,6 +1328,10 @@ fi
 
 
 %changelog
+* Thu Mar 21 2019 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-3
+- Revert fix for font cache check in QFontEngineFT::recalcAdvances()
+  Resolves: bz#1701744
+
 * Thu Sep 14 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-2
 - Update aarch64 patch
   Resolves: bz#1484361
