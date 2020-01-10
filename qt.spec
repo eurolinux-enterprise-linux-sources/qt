@@ -15,7 +15,7 @@ Summary: Qt toolkit
 Name:    qt
 Epoch:   1
 Version: 4.6.2
-Release: 24%{?dist}
+Release: 25%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FLT and MIT
@@ -143,8 +143,17 @@ Patch213: qt-x11-opensource-src-4.6.2-tablet-wacom-QTBUG-8599.patch
 Patch214: qt-everywhere-opensource-src-4.6.2-QTBUG-6932.patch
 Patch215: qt-everywhere-opensource-src-4.6.2-atomic-s390.patch
 Patch216: qt-everywhere-opensource-src-4.6.2-cups-QTBUG-6471.patch
+
 # unrecognised OpenGL version, add OpenGL 3.1, 3.2, 3.3 and 4.0 recognition to QGLFormat
 Patch217: qt-everywhere-opensource-src-4.6.2-opengl-bz#757793.patch
+
+# backport fix for http://bugreports.qt.nokia.com/browse/QTBUG-6185
+# fix wrong Cursor when widget become native. on X11 
+Patch218: qt-everywhere-opensource-src-4.6.2-bz#678604.patch
+
+# backport fix for https://bugreports.qt-project.org/browse/QTBUG-26020
+# QTabletEvent bug with high precision coordinates and multiple wacom devices
+Patch219: qt-4.6.2-bz847866-wacom.patch
 
 # optional plugin bits
 # set to -no-sql-<driver> to disable
@@ -474,6 +483,8 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch215 -p1 -b .atomic-s390
 %patch216 -p1 -b .cups-QTBUG-6471
 %patch217 -p1 -b .bz#757793
+%patch218 -p1 -b .bz#678604
+%patch219 -p1 -b .bz#847866-wacom
 
 # drop -fexceptions from $RPM_OPT_FLAGS
 RPM_OPT_FLAGS=`echo $RPM_OPT_FLAGS | sed 's|-fexceptions||g'`
@@ -1008,6 +1019,10 @@ fi
 
 
 %changelog
+* Fri Aug 24 2012 Than Ngo <than@redhat.com> - 1:4.6.2-25
+- Resolves: bz#847866, QTabletEvent issue with multiple wacom devices
+- Resolves: bz#678604, Wrong Cursor when widget become native on X11
+
 * Wed Mar 21 2012 Than Ngo <than@redhat.com> 1:4.6.2-24
 - Resolves: bz#734444, list of trusted CA certificates should not be compiled into library
 
