@@ -15,7 +15,7 @@ Summary: Qt toolkit
 Name:    qt
 Epoch:   1
 Version: 4.6.2
-Release: 25%{?dist}
+Release: 26%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FLT and MIT
@@ -127,6 +127,7 @@ Patch110: qt-everywhere-opensource-src-4.6.2-cve-2011-3194-buffer-overflow-greys
 # bz#805433, CVE-2011-3922 CVE-2010-5076 qt various flaws
 Patch111: qt-4.6.2-CVE-2011-3922.patch
 Patch112: qt-4-cve-2010-5076.patch
+Patch113: qt-4.6.2-CVE-2013-0254.patch
 
 # kde-qt git patches
 Patch201: 0001-This-patch-uses-object-name-as-a-fallback-for-window.patch
@@ -468,6 +469,7 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch110 -p1 -b .cve-2011-3194-buffer-overflow-greyscale-images
 %patch111 -p1 -b .cve-2011-3922-harfbuzz-buffer-overflow
 %patch112 -p1 -b .cve-2010-5076-ip-wildcards
+%patch113 -p1 -b .cve-2013-0254 
 
 # kde-qt branch
 %patch201 -p1 -b .kde-qt-0001
@@ -1019,6 +1021,9 @@ fi
 
 
 %changelog
+* Mon Mar 18 2013 Than Ngo <than@redhat.com> - 1:4.6.2-26
+- Resolves: CVE-2013-0254, QSharedMemory class created shared memory segments with insecure permissions
+
 * Fri Aug 24 2012 Than Ngo <than@redhat.com> - 1:4.6.2-25
 - Resolves: bz#847866, QTabletEvent issue with multiple wacom devices
 - Resolves: bz#678604, Wrong Cursor when widget become native on X11
