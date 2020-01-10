@@ -15,7 +15,7 @@ Summary: Qt toolkit
 Name:    qt
 Epoch:   1
 Version: 4.6.2
-Release: 26%{?dist}
+Release: 28%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FLT and MIT
@@ -112,6 +112,12 @@ Patch62: qt-phonon-bz#694684.patch
 # bz#734444, list of trusted CA certificates should not be compiled into library
 Patch63: qt-everywhere-opensource-src-4.6.2-bz#734444.patch
 
+# bz#1056755, nvidia issue
+Patch64: qt-everywhere-opensource-src-4.6.2-bz#1056755.patch
+
+# gcc warning
+Patch65: qt-everywhere-opensource-src-4.6.2-gcc.patch
+
 # security patches
 Patch100: qt-x11-opensource-src-4.5.3-cve-2010-0046-css-format-mem-corruption.patch
 Patch101: qt-x11-opensource-src-4.5.3-cve-2010-0049-freed-line-boxes-ltr-rtl.patch
@@ -177,6 +183,7 @@ Patch219: qt-4.6.2-bz847866-wacom.patch
 %global demos 1
 %global docs 1
 %global examples 1
+%global graphicssystem -graphicssystem raster
 
 # See http://bugzilla.redhat.com/196901
 %global _qt4 %{name}
@@ -454,6 +461,8 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch61 -p1 -b .ml_IN-rendering-bz#562132
 %patch62 -p1 -b .bz#694684
 %patch63 -p1 -b .bz#734444
+%patch64 -p1 -b .bz#1056755
+%patch65 -p1 -b .gcc-warning
 
 # security fixes
 %patch100 -p1 -b .cve-2010-0046-css-format-mem-corruption
@@ -469,7 +478,7 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch110 -p1 -b .cve-2011-3194-buffer-overflow-greyscale-images
 %patch111 -p1 -b .cve-2011-3922-harfbuzz-buffer-overflow
 %patch112 -p1 -b .cve-2010-5076-ip-wildcards
-%patch113 -p1 -b .cve-2013-0254 
+%patch113 -p1 -b .cve-2013-0254
 
 # kde-qt branch
 %patch201 -p1 -b .kde-qt-0001
@@ -576,6 +585,7 @@ rm -f src/network/network.qrc
   -openssl-linked \
   -xmlpatterns \
   %{?dbus} %{!?dbus:-no-dbus} \
+  %{?graphicssystem} \
   %{?webkit} %{!?webkit:-no-webkit } \
   %{?nas} \
   %{?mysql} \
@@ -1021,6 +1031,12 @@ fi
 
 
 %changelog
+* Wed Feb 12 2014 Than Ngo <than@redhat.com> - 1:4.6.2-28
+- fix gcc warnings
+
+* Tue Feb 11 2014 Than Ngo <than@redhat.com> - 1:4.6.2-27
+- Resolves: QGraphicsProxyWidget fails with "X Error: BadMatch"
+
 * Mon Mar 18 2013 Than Ngo <than@redhat.com> - 1:4.6.2-26
 - Resolves: CVE-2013-0254, QSharedMemory class created shared memory segments with insecure permissions
 
