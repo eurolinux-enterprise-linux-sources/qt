@@ -15,7 +15,7 @@ Summary: Qt toolkit
 Name:    qt
 Epoch:   1
 Version: 4.6.2
-Release: 20%{?dist}
+Release: 24%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FLT and MIT
@@ -106,6 +106,12 @@ Patch60: qt-4.6.3-indic-rendering-bz636399.patch
 # bz562132, [ml_IN] Malayalam rakar is not getting reordered
 Patch61: qt-everywhere-opensource-src-4.6-bz#562132.patch
 
+# bz#694684, crash in gstreamer backend
+Patch62: qt-phonon-bz#694684.patch
+
+# bz#734444, list of trusted CA certificates should not be compiled into library
+Patch63: qt-everywhere-opensource-src-4.6.2-bz#734444.patch
+
 # security patches
 Patch100: qt-x11-opensource-src-4.5.3-cve-2010-0046-css-format-mem-corruption.patch
 Patch101: qt-x11-opensource-src-4.5.3-cve-2010-0049-freed-line-boxes-ltr-rtl.patch
@@ -118,6 +124,9 @@ Patch107: qt-everywhere-opensource-src-4.6.2-cve-2010-0047.patch
 Patch108: qt-everywhere-opensource-src-4.6.2-cve-2010-0648.patch
 Patch109: qt-everywhere-opensource-src-4.6.2-cve-2011-3193-harfbuzz-buffer-overflow.patch
 Patch110: qt-everywhere-opensource-src-4.6.2-cve-2011-3194-buffer-overflow-greyscale-images.patch
+# bz#805433, CVE-2011-3922 CVE-2010-5076 qt various flaws
+Patch111: qt-4.6.2-CVE-2011-3922.patch
+Patch112: qt-4-cve-2010-5076.patch
 
 # kde-qt git patches
 Patch201: 0001-This-patch-uses-object-name-as-a-fallback-for-window.patch
@@ -134,6 +143,8 @@ Patch213: qt-x11-opensource-src-4.6.2-tablet-wacom-QTBUG-8599.patch
 Patch214: qt-everywhere-opensource-src-4.6.2-QTBUG-6932.patch
 Patch215: qt-everywhere-opensource-src-4.6.2-atomic-s390.patch
 Patch216: qt-everywhere-opensource-src-4.6.2-cups-QTBUG-6471.patch
+# unrecognised OpenGL version, add OpenGL 3.1, 3.2, 3.3 and 4.0 recognition to QGLFormat
+Patch217: qt-everywhere-opensource-src-4.6.2-opengl-bz#757793.patch
 
 # optional plugin bits
 # set to -no-sql-<driver> to disable
@@ -431,6 +442,8 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch59 -p1 -b .indic-rendering-bz631732
 %patch60 -p1 -b .indic-rendering-bz636399
 %patch61 -p1 -b .ml_IN-rendering-bz#562132
+%patch62 -p1 -b .bz#694684
+%patch63 -p1 -b .bz#734444
 
 # security fixes
 %patch100 -p1 -b .cve-2010-0046-css-format-mem-corruption
@@ -444,6 +457,8 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch108 -p1 -b .cve-2010-0648
 %patch109 -p1 -b .cve-2011-3193-harfbuzz-buffer-overflow
 %patch110 -p1 -b .cve-2011-3194-buffer-overflow-greyscale-images
+%patch111 -p1 -b .cve-2011-3922-harfbuzz-buffer-overflow
+%patch112 -p1 -b .cve-2010-5076-ip-wildcards
 
 # kde-qt branch
 %patch201 -p1 -b .kde-qt-0001
@@ -458,6 +473,7 @@ Qt libraries used for drawing widgets and OpenGL items.
 %patch214 -p1 -b .QTBUG-6932
 %patch215 -p1 -b .atomic-s390
 %patch216 -p1 -b .cups-QTBUG-6471
+%patch217 -p1 -b .bz#757793
 
 # drop -fexceptions from $RPM_OPT_FLAGS
 RPM_OPT_FLAGS=`echo $RPM_OPT_FLAGS | sed 's|-fexceptions||g'`
@@ -491,6 +507,9 @@ if [ "%{_lib}" == "lib64" ] ; then
   sed -i -e "s,/usr/lib /lib,/usr/%{_lib} /%{_lib},g" config.tests/{unix,x11}/*.test
   sed -i -e "s,/lib /usr/lib,/%{_lib} /usr/%{_lib},g" config.tests/{unix,x11}/*.test
 fi
+
+# bz#734444
+rm -f src/network/network.qrc
 
 %build
 
@@ -989,6 +1008,18 @@ fi
 
 
 %changelog
+* Wed Mar 21 2012 Than Ngo <than@redhat.com> 1:4.6.2-24
+- Resolves: bz#734444, list of trusted CA certificates should not be compiled into library
+
+* Wed Mar 21 2012 Than Ngo <than@redhat.com> - 1:4.6.2-23
+- Resolves: bz#805433, CVE-2011-3922
+
+* Mon Feb 06 2012 Than Ngo <than@redhat.com> - 1:4.6.2-22
+- Resolves: bz#694684, phonon crash
+
+* Thu Dec 01 2011 Than Ngo <than@redhat.com> - 1:4.6.2-21
+- Resolves: #rhbz757793, add OpenGL 3.1, 3.2, 3.3 and 4.0 recognition to QGLFormat
+
 * Tue Sep 13 2011 Jaroslav Reznik <jreznik@redhat.com> - 1:4.6.2-20
 - Resolves: #rhbz737813
    fix multiple flaws in Qt
