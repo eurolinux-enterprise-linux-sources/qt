@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -60,7 +60,7 @@ static const char ppsRegionLocalePath[] = "/pps/services/locale/settings";
 static const char ppsLanguageLocalePath[] = "/pps/services/confstr/_CS_LOCALE";
 static const char ppsHourFormatPath[] = "/pps/system/settings";
 
-static const size_t ppsBufferSize = 256;
+static const int MAX_PPS_SIZE = 16000;
 
 QBBSystemLocaleData::QBBSystemLocaleData()
     : languageNotifier(0)
@@ -68,17 +68,20 @@ QBBSystemLocaleData::QBBSystemLocaleData()
     , measurementNotifier(0)
     , hourNotifier(0)
 {
+    // Do not use qWarning to log warnings if qt_safe_open fails to open the pps file
+    // since the user code may install a message handler that invokes QLocale API again
+    // (i.e QDate, QDateTime, ...) which will cause an infinite loop.
     if ((measurementFd = qt_safe_open(ppsUomPath, O_RDONLY)) == -1)
-        qWarning("Failed to open uom pps, errno=%d", errno);
+        fprintf(stderr, "Failed to open uom pps, errno=%d\n", errno);
 
     if ((regionFd = qt_safe_open(ppsRegionLocalePath, O_RDONLY)) == -1)
-        qWarning("Failed to open region pps, errno=%d", errno);
+        fprintf(stderr, "Failed to open region pps, errno=%d\n", errno);
 
     if ((languageFd = qt_safe_open(ppsLanguageLocalePath, O_RDONLY)) == -1)
-        qWarning("Failed to open language pps, errno=%d", errno);
+        fprintf(stderr, "Failed to open language pps, errno=%d\n", errno);
 
     if ((hourFd = qt_safe_open(ppsHourFormatPath, O_RDONLY)) == -1)
-        qWarning("Failed to open hour format pps, errno=%d", errno);
+       fprintf(stderr, "Failed to open hour format pps, errno=%d\n", errno);
 
     // we cannot call this directly, because by the time this constructor is
     // called, the event dispatcher has not yet been created, causing the
@@ -183,11 +186,31 @@ QByteArray QBBSystemLocaleData::readPpsValue(const char *ppsObject, int ppsFd)
     if (!ppsObject || ppsFd == -1)
         return result;
 
-    char buffer[ppsBufferSize];
 
-    int bytes = qt_safe_read(ppsFd, buffer, ppsBufferSize - 1);
+    // PPS objects are of unknown size, but must be read all at once.
+    // Relying on the file size may not be a good idea since the size may change before reading.
+    // Let's try with an initial size (512), and if the buffer is too small try with bigger one,
+    // until we succeed or until other non buffer-size-related error occurs.
+    // Using QVarLengthArray means the first try (of size == 512) uses a buffer on the stack - no allocation necessary.
+     // Hopefully that covers most use cases.
+    int bytes;
+    QVarLengthArray<char, 512> buffer;
+    for (;;) {
+        errno = 0;
+        bytes = qt_safe_read(ppsFd, buffer.data(), buffer.capacity() - 1);
+        const bool bufferIsTooSmall = (bytes == -1 && errno == EMSGSIZE && buffer.capacity() < MAX_PPS_SIZE);
+        if (!bufferIsTooSmall)
+            break;
+
+        buffer.resize(qMin(buffer.capacity()*2, MAX_PPS_SIZE));
+    }
+
+    // This method is called in the ctor(), so do not use qWarning to log warnings
+    // if qt_safe_read fails to read the pps file
+    // since the user code may install a message handler that invokes QLocale API again
+    // (i.e QDate, QDateTime, ...) which will cause a infinite loop.
     if (bytes == -1) {
-        qWarning("Failed to read Locale pps, errno=%d", errno);
+        fprintf(stderr, "Failed to read pps object:%s, errno=%d\n", ppsObject, errno);
         return result;
     }
     // ensure data is null terminated
@@ -195,7 +218,7 @@ QByteArray QBBSystemLocaleData::readPpsValue(const char *ppsObject, int ppsFd)
 
     pps_decoder_t ppsDecoder;
     pps_decoder_initialize(&ppsDecoder, 0);
-    if (pps_decoder_parse_pps_str(&ppsDecoder, buffer) == PPS_DECODER_OK) {
+    if (pps_decoder_parse_pps_str(&ppsDecoder, buffer.data()) == PPS_DECODER_OK) {
         pps_decoder_push(&ppsDecoder, 0);
         const char *ppsBuff;
         if (pps_decoder_get_string(&ppsDecoder, ppsObject, &ppsBuff) == PPS_DECODER_OK) {
@@ -289,9 +312,9 @@ QVariant QSystemLocale::query(QueryType type, QVariant in) const
     case DateToStringShort:
         return lc_region.toString(in.toDate(), QLocale::ShortFormat);
     case TimeToStringLong:
-        return lc_region.toString(in.toTime(), QLocale::LongFormat);
+        return lc_region.toString(in.toTime(), d->timeFormat(QLocale::LongFormat).toString());
     case TimeToStringShort:
-        return lc_region.toString(in.toTime(), QLocale::ShortFormat);
+        return lc_region.toString(in.toTime(), d->timeFormat(QLocale::ShortFormat).toString());
     case DateTimeToStringShort:
         return lc_region.toString(in.toDateTime(), d->dateTimeFormat(QLocale::ShortFormat).toString());
     case DateTimeToStringLong:

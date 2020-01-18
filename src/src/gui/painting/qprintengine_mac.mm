@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,14 +35,13 @@
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
 **
-**
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
 
 #include <private/qprintengine_mac_p.h>
-#include <qdebug.h>
 #include <qthread.h>
+#include <quuid.h>
 #include <QtCore/qcoreapplication.h>
 
 #ifndef QT_NO_PRINTER
@@ -148,30 +148,52 @@ QMacPrintEnginePrivate::~QMacPrintEnginePrivate()
 void QMacPrintEnginePrivate::setPaperSize(QPrinter::PaperSize ps)
 {
     Q_Q(QMacPrintEngine);
-    QSize newSize = qt_paperSizeToQSizeF(ps).toSize();
-    QCFType<CFArrayRef> formats;
+    if (hasCustomPaperSize) {
+        PMRelease(customPaper);
+        customPaper = 0;
+    }
+    hasCustomPaperSize = (ps == QPrinter::Custom);
     PMPrinter printer;
 
-    if (PMSessionGetCurrentPrinter(session, &printer) == noErr
-        && PMSessionCreatePageFormatList(session, printer, &formats) == noErr) {
-        CFIndex total = CFArrayGetCount(formats);
-        PMPageFormat tmp;
-        PMRect paper;
-        for (CFIndex idx = 0; idx < total; ++idx) {
-            tmp = static_cast<PMPageFormat>(
-                                        const_cast<void *>(CFArrayGetValueAtIndex(formats, idx)));
-            PMGetUnadjustedPaperRect(tmp, &paper);
-            int wMM = int((paper.right - paper.left) / 72 * 25.4 + 0.5);
-            int hMM = int((paper.bottom - paper.top) / 72 * 25.4 + 0.5);
-            if (newSize.width() == wMM && newSize.height() == hMM) {
-                PMCopyPageFormat(tmp, format);
-                // reset the orientation and resolution as they are lost in the copy.
-                q->setProperty(QPrintEngine::PPK_Orientation, orient);
-                if (PMSessionValidatePageFormat(session, format, kPMDontWantBoolean) != noErr) {
-                    // Don't know, warn for the moment.
-                    qWarning("QMacPrintEngine, problem setting format and resolution for this page size");
+    if (PMSessionGetCurrentPrinter(session, &printer) == noErr) {
+        if (ps != QPrinter::Custom) {
+            QSize newSize = qt_paperSizeToQSizeF(ps).toSize();
+            QCFType<CFArrayRef> formats;
+            if (PMSessionCreatePageFormatList(session, printer, &formats) == noErr) {
+                CFIndex total = CFArrayGetCount(formats);
+                PMPageFormat tmp;
+                PMRect paper;
+                for (CFIndex idx = 0; idx < total; ++idx) {
+                    tmp = static_cast<PMPageFormat>(const_cast<void *>(CFArrayGetValueAtIndex(formats, idx)));
+                    PMGetUnadjustedPaperRect(tmp, &paper);
+                    int wMM = int((paper.right - paper.left) / 72 * 25.4 + 0.5);
+                    int hMM = int((paper.bottom - paper.top) / 72 * 25.4 + 0.5);
+                    if (newSize.width() == wMM && newSize.height() == hMM) {
+                        PMCopyPageFormat(tmp, format);
+                        // reset the orientation and resolution as they are lost in the copy.
+                        q->setProperty(QPrintEngine::PPK_Orientation, orient);
+                        if (PMSessionValidatePageFormat(session, format, kPMDontWantBoolean) != noErr) {
+                            // Don't know, warn for the moment.
+                            qWarning("QMacPrintEngine, problem setting format and resolution for this page size");
+                        }
+                        break;
+                    }
                 }
-                break;
+            }
+        } else {
+            QCFString paperId = QCFString::toCFStringRef(QUuid::createUuid().toString());
+            PMPaperMargins paperMargins;
+            paperMargins.left = leftMargin;
+            paperMargins.top = topMargin;
+            paperMargins.right = rightMargin;
+            paperMargins.bottom = bottomMargin;
+            PMPaperCreateCustom(printer, paperId, QCFString("Custom size"), customSize.width(), customSize.height(), &paperMargins, &customPaper);
+            PMPageFormat tmp;
+            PMCreatePageFormatWithPMPaper(&tmp, customPaper);
+            PMCopyPageFormat(tmp, format);
+            if (PMSessionValidatePageFormat(session, format, kPMDontWantBoolean) != noErr) {
+                // Don't know, warn for the moment.
+                qWarning("QMacPrintEngine, problem setting paper name");
             }
         }
     }
@@ -492,6 +514,8 @@ void QMacPrintEnginePrivate::releaseSession()
     PMSessionEndDocumentNoDialog(session);
     [printInfo release];
 #endif
+    if (hasCustomPaperSize)
+        PMRelease(customPaper);
     printInfo = 0;
     session = 0;
 }
@@ -744,10 +768,10 @@ void QMacPrintEngine::setProperty(PrintEnginePropertyKey key, const QVariant &va
     {
         PMOrientation orientation;
         PMGetOrientation(d->format, &orientation);
-        d->hasCustomPaperSize = true;
         d->customSize = value.toSizeF();
         if (orientation != kPMPortrait)
             d->customSize = QSizeF(d->customSize.height(), d->customSize.width());
+        d->setPaperSize(QPrinter::Custom);
         break;
     }
     case PPK_PageMargins:

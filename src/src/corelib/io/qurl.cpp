@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -2404,11 +2404,12 @@ static void mapToLowerCase(QString *str, int from)
                 int l = 1;
                 while (l < 4 && entry->mapping[l])
                     ++l;
-                if (l > 1) {
+                if (l > 1 || uc > 0xffff) {
                     if (uc <= 0xffff)
                         str->replace(i, 1, reinterpret_cast<const QChar *>(&entry->mapping[0]), l);
                     else
-                        str->replace(i-1, 2, reinterpret_cast<const QChar *>(&entry->mapping[0]), l);
+                        str->replace(--i, 2, reinterpret_cast<const QChar *>(&entry->mapping[0]), l);
+                    i += l - 1;
                     d = 0;
                 } else {
                     if (!d)
@@ -2437,18 +2438,20 @@ static bool isMappedToNothing(uint uc)
 }
 
 
-static void stripProhibitedOutput(QString *str, int from)
+static bool containsProhibitedOuptut(const QString *str, int from)
 {
-    ushort *out = (ushort *)str->data() + from;
-    const ushort *in = out;
+    const ushort *in = reinterpret_cast<const ushort *>(str->begin() + from);
     const ushort *end = (ushort *)str->data() + str->size();
-    while (in < end) {
+    for ( ; in < end; ++in) {
         uint uc = *in;
         if (QChar(uc).isHighSurrogate() && in < end - 1) {
             ushort low = *(in + 1);
             if (QChar(low).isLowSurrogate()) {
                 ++in;
                 uc = QChar::surrogateToUcs4(uc, low);
+            } else {
+                // unpaired surrogates are prohibited
+                return true;
             }
         }
         if (uc <= 0xFFFF) {
@@ -2473,7 +2476,7 @@ static void stripProhibitedOutput(QString *str, int from)
                 || (uc >= 0xFDD0 && uc <= 0xFDEF)
                 || uc == 0xFEFF
                 || (uc >= 0xFFF9 && uc <= 0xFFFF))) {
-                *out++ = *in;
+                continue;
             }
         } else {
             if (!((uc >= 0x1D173 && uc <= 0x1D17A)
@@ -2497,14 +2500,12 @@ static void stripProhibitedOutput(QString *str, int from)
                 || (uc >= 0xFFFFE && uc <= 0xFFFFF)
                 || (uc >= 0x100000 && uc <= 0x10FFFD)
                 || (uc >= 0x10FFFE && uc <= 0x10FFFF))) {
-                *out++ = QChar::highSurrogate(uc);
-                *out++ = QChar::lowSurrogate(uc);
+                continue;
             }
         }
-        ++in;
+        return true;
     }
-    if (in != out)
-        str->truncate(out - str->utf16());
+    return false;
 }
 
 static bool isBidirectionalRorAL(uint uc)
@@ -2974,7 +2975,7 @@ void qt_nameprep(QString *source, int from)
 
     for ( ; out < e; ++out) {
         register ushort uc = out->unicode();
-        if (uc > 0x80) {
+        if (uc >= 0x80) {
             break;
         } else if (uc >= 'A' && uc <= 'Z') {
             *out = QChar(uc | 0x20);
@@ -3011,8 +3012,8 @@ void qt_nameprep(QString *source, int from)
             if (uc <= 0xFFFF) {
                 *out++ = *in;
             } else {
-                *out++ = QChar::highSurrogate(uc);
-                *out++ = QChar::lowSurrogate(uc);
+                *out++ = in[-1];
+                *out++ = in[0];
             }
         }
     }
@@ -3029,7 +3030,10 @@ void qt_nameprep(QString *source, int from)
                         firstNonAscii > from ? firstNonAscii - 1 : from);
 
     // Strip prohibited output
-    stripProhibitedOutput(source, firstNonAscii);
+    if (containsProhibitedOuptut(source, firstNonAscii)) {
+        source->resize(from);
+        return;
+    }
 
     // Check for valid bidirectional characters
     bool containsLCat = false;
@@ -6625,7 +6629,7 @@ modification, are permitted provided that the following conditions are met:
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
     * Neither the name of Research In Motion Limited nor the
-      names of its contributors may be used to endorse or promote products
+      contributors may be used to endorse or promote products derived
       derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY Research In Motion Limited ''AS IS'' AND ANY

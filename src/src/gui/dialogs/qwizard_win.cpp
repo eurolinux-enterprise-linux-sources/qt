@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -248,7 +248,7 @@ QVistaHelper::QVistaHelper(QWizard *wizard)
     , wizard(wizard)
     , backButton_(0)
 {
-    is_vista = resolveSymbols();
+    is_vista = QSysInfo::WindowsVersion >= QSysInfo::WV_VISTA && resolveSymbols();
     if (instanceCount++ == 0)
         cachedVistaState = Dirty;
     if (is_vista)
@@ -409,12 +409,12 @@ bool QVistaHelper::winEvent(MSG* msg, long* result)
         break;
     }
     case WM_NCCALCSIZE:
-        if (QSysInfo::WindowsVersion < QSysInfo::WV_WINDOWS8 && vistaState() == VistaAero) {
+        if (vistaState() == VistaAero) {
             NCCALCSIZE_PARAMS* lpncsp = (NCCALCSIZE_PARAMS*)msg->lParam;
             *result = DefWindowProc(msg->hwnd, msg->message, msg->wParam, msg->lParam);
             lpncsp->rgrc[0].top -= titleBarSize();
         } else {
-            return false; // Negative margins no longer work on Windows 8.
+            return false;
         }
         break;
     default:
@@ -737,6 +737,33 @@ bool QVistaHelper::drawBlackRect(const QRect &rect, HDC hdc)
     return value;
 }
 
+#if !defined(_MSC_VER) || _MSC_VER < 1700
+static inline int getWindowBottomMargin()
+{
+    return GetSystemMetrics(SM_CYSIZEFRAME);
+}
+#else // !_MSC_VER || _MSC_VER < 1700
+// QTBUG-36192, GetSystemMetrics(SM_CYSIZEFRAME) returns bogus values
+// for MSVC2012 which leads to the custom margin having no effect since
+// that only works when removing the entire margin.
+static inline int getWindowBottomMargin()
+{
+    RECT rect = {0, 0, 0, 0};
+    AdjustWindowRectEx(&rect, WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_THICKFRAME | WS_DLGFRAME, FALSE, 0);
+    return qAbs(rect.bottom);
+}
+#endif // _MSC_VER >= 1700
+
+int QVistaHelper::frameSize()
+{
+    return getWindowBottomMargin();
+}
+
+int QVistaHelper::captionSize()
+{
+    return GetSystemMetrics(SM_CYCAPTION);
+}
+
 bool QVistaHelper::resolveSymbols()
 {
     static bool tried = false;
@@ -795,10 +822,7 @@ int QVistaHelper::topOffset()
     static const int aeroOffset =
         QSysInfo::WindowsVersion == QSysInfo::WV_WINDOWS7 ?
         QStyleHelper::dpiScaled(4) : QStyleHelper::dpiScaled(13);
-    int result = aeroOffset;
-    if (QSysInfo::WindowsVersion < QSysInfo::WV_WINDOWS8)
-        result += titleBarSize();
-    return result;
+    return aeroOffset + titleBarSize();
 }
 
 QT_END_NAMESPACE

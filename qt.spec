@@ -5,19 +5,19 @@
 %define no_pch -no-pch
 
 # See http://bugzilla.redhat.com/223663
-%define multilib_archs x86_64 %{ix86} ppc64 ppc s390x s390 sparc64 sparcv9 aarch64 ppc64le
-%define multilib_basearchs x86_64 ppc64 s390x sparc64 aarch64 ppc64le
+%define multilib_archs x86_64 %{ix86} %{mips} ppc64 ppc64le ppc s390x s390 sparc64 sparcv9
+%define multilib_basearchs x86_64 %{mips64} ppc64 ppc64le s390x sparc64
 
 %if 0%{?fedora} > 16 || 0%{?rhel} > 6
 # use external qt_settings pkg
 %define qt_settings 1
 %endif
 
-%if 0%{?_rpmconfigdir:1}
-%define rpm_macros_dir %{_rpmconfigdir}/macros.d
-%else
-%define rpm_macros_dir %{_sysconfdir}/rpm
+%if (0%{?fedora} > 19 && 0%{?fedora} < 26) || 0%{?rhel} > 7
+%global system_clucene 1
 %endif
+
+%global rpm_macros_dir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 # trim changelog included in binary rpms
 %global _changelog_trimtime %(date +%s -d "1 year ago")
@@ -25,15 +25,15 @@
 Summary: Qt toolkit
 Name:    qt
 Epoch:   1
-Version: 4.8.5
-Release: 15%{?dist}
+Version: 4.8.7
+Release: 3%{?dist}
 
 # See LGPL_EXCEPTIONS.txt, LICENSE.GPL3, respectively, for exception details
 License: (LGPLv2 with exceptions or GPLv3 with exceptions) and ASL 2.0 and BSD and FTL and MIT
 Group: System Environment/Libraries
 Url:     http://qt-project.org/
-%if 0%{?pre:1}
-Source0: http://download.qt-project.org/snapshots/qt/4.8/%{version}-%{pre}/qt-everywhere-opensource-src-%{version}-%{pre}.tar.gz
+%if 0%{?beta:1}
+Source0: http://download.qt-project.org/development_releases/qt/4.8/%{version}-%{beta}/qt-everywhere-opensource-src-%{version}-%{beta}.tar.gz
 %else
 Source0: http://download.qt-project.org/official_releases/qt/4.8/%{version}/qt-everywhere-opensource-src-%{version}.tar.gz
 %endif
@@ -54,6 +54,12 @@ Patch2: qt-everywhere-opensource-src-4.8.0-tp-multilib-optflags.patch
 
 # get rid of timestamp which causes multilib problem
 Patch4: qt-everywhere-opensource-src-4.8.5-uic_multilib.patch
+
+# reduce debuginfo in qtwebkit (webcore)
+Patch5: qt-everywhere-opensource-src-4.8.5-webcore_debuginfo.patch
+
+# cups16 printer discovery
+Patch6: qt-cupsEnumDests.patch
 
 # enable ft lcdfilter
 Patch15: qt-x11-opensource-src-4.5.1-enable_ft_lcdfilter.patch
@@ -79,12 +85,18 @@ Patch28: qt-everywhere-opensource-src-4.8.5-qt_plugin_path.patch
 # add support for pkgconfig's Requires.private to qmake
 Patch50: qt-everywhere-opensource-src-4.8.4-qmake_pkgconfig_requires_private.patch
 
+# FTBFS against newer firebird
+Patch51: qt-everywhere-opensource-src-4.8.7-firebird.patch
+
+# workaround major/minor macros possibly being defined already
+Patch52: qt-everywhere-opensource-src-4.8.7-QT_VERSION_CHECK.patch
+
 # fix invalid inline assembly in qatomic_{i386,x86_64}.h (de)ref implementations
 Patch53: qt-x11-opensource-src-4.5.0-fix-qatomic-inline-asm.patch
 
 # fix invalid assumptions about mysql_config --libs
 # http://bugzilla.redhat.com/440673
-Patch54: qt-everywhere-opensource-src-4.7.0-beta2-mysql_config.patch
+Patch54: qt-everywhere-opensource-src-4.8.5-mysql_config.patch
 
 # http://bugs.kde.org/show_bug.cgi?id=180051#c22
 Patch55: qt-everywhere-opensource-src-4.6.2-cups.patch
@@ -96,7 +108,7 @@ Patch64: qt-everywhere-opensource-src-4.8.5-QTBUG-14467.patch
 Patch65: qt-everywhere-opensource-src-4.8.0-tp-qtreeview-kpackagekit-crash.patch
 
 # fix the outdated standalone copy of JavaScriptCore
-Patch67: qt-everywhere-opensource-src-4.8.0-beta1-s390.patch
+Patch67: qt-everywhere-opensource-src-4.8.6-s390.patch
 
 # https://bugs.webkit.org/show_bug.cgi?id=63941
 # -Wall + -Werror = fail
@@ -118,9 +130,6 @@ Patch76: qt-everywhere-opensource-src-4.8.0-s390-atomic.patch
 # don't spam in release/no_debug mode if libicu is not present at runtime
 Patch77: qt-everywhere-opensource-src-4.8.3-icu_no_debug.patch
 
-# gcc doesn't support flag -fuse-ld=gold
-Patch80: qt-everywhere-opensource-src-4.8.0-ld-gold.patch
-
 # https://bugzilla.redhat.com/show_bug.cgi?id=810500
 Patch81: qt-everywhere-opensource-src-4.8.2--assistant-crash.patch
 
@@ -134,10 +143,7 @@ Patch82: qt-everywhere-opensource-src-4.8.5-QTBUG-4862.patch
 Patch83: qt-4.8-poll.patch
 
 # aarch64 support
-Patch84: aarch64.patch
-
-# fix aarch64 detection
-Patch85: fix-aarch64-detection.patch
+Patch85: qt-aarch64.patch
 
 # prevent overflow warning
 Patch86: qt-gcc-warning-overflow.patch
@@ -147,6 +153,27 @@ Patch87: qt-everywhere-opensource-src-4.8-ppc64le_support.patch
 
 # prefer adwaita-qt style over gtk
 Patch88: qt-prefer_adwaita_on_gnome.patch
+
+# fix QTBUG-35459 (too low entityCharacterLimit=1024 for CVE-2013-4549)
+Patch90: qt-everywhere-opensource-src-4.8.5-QTBUG-35459.patch
+
+# systemtrayicon plugin support (for appindicators)
+Patch91: qt-everywhere-opensource-src-4.8.6-systemtrayicon.patch
+
+# fixes for LibreOffice from the upstream Qt bug tracker (#1105422):
+Patch92: qt-everywhere-opensource-src-4.8.6-QTBUG-37380.patch
+Patch93: qt-everywhere-opensource-src-4.8.6-QTBUG-34614.patch
+Patch94: qt-everywhere-opensource-src-4.8.6-QTBUG-38585.patch
+# build against the system clucene09-core
+Patch95: qt-everywhere-opensource-src-4.8.6-system-clucene.patch
+# fix arch autodetection for 64-bit MIPS
+Patch96: qt-everywhere-opensource-src-4.8.7-mips64.patch
+# fix build issue(s) with gcc6
+Patch97: qt-everywhere-opensource-src-4.8.7-gcc6.patch
+# support alsa-1.1.x
+Patch98: qt-everywhere-opensource-src-4.8.7-alsa-1.1.patch
+# Revert https://github.com/qt/qt/commit/80e3108f5cd1e1850ec81a21100d79a0946addd7
+Patch99: qt-everywhere-opensource-src-4.8.7-revert-font-cache-fix.patch
 
 # upstream patches
 # http://codereview.qt-project.org/#change,22006
@@ -173,8 +200,8 @@ Patch114: qt-revert-QTBUG-15319-fix-shortcuts-with-secondary-Xkb.patch
 # Bug 1378865 - Qt based applications get killed in Gnome before confirmation for Logout/Shutdown/Restart
 Patch115: qt-everywhere-opensource-src-4.8.5-do-not-close-apps-on-gnome-shutdown-dialog.patch
 
-# Bug 1489851 - Backport security improvement patch to the current QT 4.8.5 in RHEL7
-Patch150: qt-4.8.5-fix-data-corruption-in-readData.patch
+
+## upstream git
 
 # security patches
 
@@ -195,12 +222,14 @@ Source31: hi48-app-qt4-logo.png
 ## optional plugin bits
 # set to -no-sql-<driver> to disable
 # set to -qt-sql-<driver> to enable *in* qt library
-%define mysql -plugin-sql-mysql
+%global mysql -plugin-sql-mysql
 %define odbc -plugin-sql-odbc
 %define psql -plugin-sql-psql
 %define sqlite -plugin-sql-sqlite
+%if 0%{?fedora} < 21 && 0%{?rhel} < 8
 %define phonon -phonon
 %define phonon_backend -phonon-backend
+%endif
 %define dbus -dbus-linked
 %define graphicssystem -graphicssystem raster
 %define gtkstyle -gtkstyle
@@ -215,10 +244,9 @@ Source31: hi48-app-qt4-logo.png
 %define ibase -no-sql-ibase
 %define tds -no-sql-tds
 %endif
-%ifarch aarch64
-%define no_javascript_jit -no-javascript-jit
-%endif
 
+# macros, be mindful to keep sync'd with macros.qt4
+Source1: macros.qt4
 # See http://bugzilla.redhat.com/196901
 %define _qt4 %{name}
 %define _qt4_prefix %{_libdir}/qt4
@@ -247,9 +275,19 @@ BuildRequires: pkgconfig(alsa)
 BuildRequires: pkgconfig(dbus-1)
 BuildRequires: pkgconfig(fontconfig)
 BuildRequires: pkgconfig(glib-2.0)
+%if 0%{?fedora} || 0%{?rhel} > 6
 BuildRequires: pkgconfig(icu-i18n)
+%endif
 BuildRequires: pkgconfig(NetworkManager)
+%if 0%{?fedora} > 25 || 0%{?rhel} > 7
+%global openssl -openssl-linked
+# if openssl is loaded dynamically, add an explicit dependency
+#Requires: openssl-libs%{?_isa}
+BuildRequires: compat-openssl10-devel
+%else
+%global openssl -openssl-linked
 BuildRequires: pkgconfig(openssl)
+%endif
 BuildRequires: pkgconfig(libpng)
 BuildRequires: pkgconfig(libpulse)
 BuildRequires: pkgconfig(xtst)
@@ -261,11 +299,17 @@ BuildRequires: rsync
 BuildRequires: %{gl_deps}
 BuildRequires: %{x_deps}
 
+%if 0%{?system_clucene}
+BuildRequires: clucene09-core-devel >= 0.9.21b-12
+%endif
+
 %if "%{?ibase}" != "-no-sql-ibase"
 BuildRequires: firebird-devel
 %endif
 
-%if "%{?mysql}" != "-no-sql-mysql"
+%if "%{?mysql}" == "-no-sql-mysql"
+Obsoletes: %{name}-mysql < %{epoch}:%{version}-%{release}
+%else
 BuildRequires: mysql-devel >= 4.0
 %endif
 
@@ -319,6 +363,9 @@ Summary: Documentation browser for Qt 4
 Group: Documentation
 Requires: %{name}-sqlite%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
 Provides: qt4-assistant = %{version}-%{release}
+%if ! 0%{?system_clucene}
+Provides: bundled(clucene09)
+%endif
 Requires: %{name}-x11%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
 %description assistant
 %{summary}.
@@ -356,8 +403,7 @@ Provides:  qt4-doc = %{version}-%{release}
 Obsoletes: qt-doc < 1:4.5.1-4
 BuildArch: noarch
 %description doc
-%{summary}.  Includes:
-Qt Assistant
+%{summary}.
 
 %package designer-plugin-webkit
 Summary: Qt designer plugin for WebKit
@@ -381,11 +427,11 @@ Provides: qt4-phonon-devel = %{version}-%{release}
 Obsoletes: qt4-designer < %{version}-%{release}
 Provides:  qt4-designer = %{version}-%{release}
 # as long as libQtUiTools.a is included
-Provides:  %{name}-static = %{version}-%{release}
+Provides:  %{name}-static = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:  qt4-static = %{version}-%{release}
 Obsoletes: qt4-devel < %{version}-%{release}
 Provides:  qt4-devel = %{version}-%{release}
 %{?_isa:Provides: qt4-devel%{?_isa} = %{version}-%{release}}
-Provides:  qt4-static = %{version}-%{release}
 
 %description devel
 This package contains the files necessary to develop
@@ -398,6 +444,8 @@ Qt Linguist
 Summary: Private headers for Qt toolkit
 Group: Development/Libraries
 Provides: qt4-devel-private = %{version}-%{release}
+Provides: %{name}-private-devel = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides: qt4-private-devel = %{version}-%{release}
 Requires: %{name}-devel = %{?epoch:%{epoch}:}%{version}-%{release}
 BuildArch: noarch
 %description devel-private
@@ -503,6 +551,8 @@ and invoke methods on those objects.
 # drop backup file(s), else they get installed too, http://bugzilla.redhat.com/639463
 rm -fv mkspecs/linux-g++*/qmake.conf.multilib-optflags
 %patch4 -p1 -b .uic_multilib
+%patch5 -p1 -b .webcore_debuginfo
+#patch6 -p1 -b .cupsEnumDests
 %patch15 -p1 -b .enable_ft_lcdfilter
 %patch23 -p1 -b .glib_eventloop_nullcheck
 %patch25 -p1 -b .qdbusconnection_no_debug
@@ -510,6 +560,8 @@ rm -fv mkspecs/linux-g++*/qmake.conf.multilib-optflags
 %patch27 -p1 -b .qt3support_debuginfo
 %patch28 -p1 -b .qt_plugin_path
 %patch50 -p1 -b .qmake_pkgconfig_requires_private
+%patch51 -p1 -b .firebird
+%patch52 -p1 -b .QT_VERSION_CHECK
 ## TODO: still worth carrying?  if so, upstream it.
 %patch53 -p1 -b .qatomic-inline-asm
 ## TODO: upstream me
@@ -524,31 +576,41 @@ rm -fv mkspecs/linux-g++*/qmake.conf.multilib-optflags
 %patch74 -p1 -b .tds_no_strict_aliasing
 %patch76 -p1 -b .s390-atomic
 %patch77 -p1 -b .icu_no_debug
-%patch80 -p1 -b .ld.gold
 %patch81 -p1 -b .assistant-crash
 %patch82 -p1 -b .QTBUG-4862
 %patch83 -p1 -b .poll
-%patch84 -p1 -b .aarch64
-%patch85 -p1 -b .fix-aarch64-detection
+%patch85 -p1 -b .qt-aarch64
 %patch86 -p1 -b .gcc-overflow-warning
 %patch87 -p1 -b .ppc64le
 %patch88 -p1 -b .prefer_adwaita_on_gnome
+
+# regression fixes for the security fixes
+%patch90 -p1 -b .QTBUG-35459
+%patch91 -p1 -b .systemtrayicon
+%patch92 -p1 -b .QTBUG-37380
+%patch93 -p0 -b .QTBUG-34614
+%patch94 -p0 -b .QTBUG-38585
+%if 0%{?system_clucene}
+%patch95 -p1 -b .system_clucene
+# delete bundled copy
+rm -rf src/3rdparty/clucene
+%endif
+%patch96 -p1 -b .mips64
+%patch97 -p1 -b .gcc6
+%patch98 -p1 -b .alsa1.1
+%patch99 -p1 -b .revert-font-cache-fix
 
 # upstream patches
 %patch100 -p1 -b .QTgaHandler
 %patch101 -p1 -R -b .QTBUG-30076
 %patch102 -p1 -b .qgtkstyle_disable_gtk_theme_check
 %patch113 -p1 -b .QTBUG-22829
-%patch114 -p1 -b .revert-QTBUG-15319-fix-shortcuts-with-secondary-Xkb.patch
+# %patch114 -p1 -b .revert-QTBUG-15319-fix-shortcuts-with-secondary-Xkb.patch
 %patch115 -p1 -b .qt-everywhere-opensource-src-4.8.5-do-not-close-apps-on-gnome-shutdown-dialog
 
 # upstream git
-%patch150 -p1 -b .fix-data-corruption-in-readData
 
 # security fixes
-
-# drop -fexceptions from $RPM_OPT_FLAGS
-RPM_OPT_FLAGS=`echo $RPM_OPT_FLAGS | sed 's|-fexceptions||g'`
 
 %define platform linux-g++
 
@@ -568,15 +630,20 @@ sed -i -e "s|-O2|$RPM_OPT_FLAGS|g" \
 sed -i -e "s|^\(QMAKE_LFLAGS_RELEASE.*\)|\1 $RPM_LD_FLAGS|" \
   mkspecs/common/g++-unix.conf
 
-# undefine QMAKE_STRIP, so we get useful -debuginfo pkgs
-sed -i -e "s|^QMAKE_STRIP.*=.*|QMAKE_STRIP             =|" \
-  mkspecs/common/linux.conf
+# undefine QMAKE_STRIP (and friends), so we get useful -debuginfo pkgs (#193602)
+sed -i -e 's|^\(QMAKE_STRIP.*=\).*$|\1|g' mkspecs/common/linux.conf
 
 # set correct lib path
 if [ "%{_lib}" == "lib64" ] ; then
   sed -i -e "s,/usr/lib /lib,/usr/%{_lib} /%{_lib},g" config.tests/{unix,x11}/*.test
   sed -i -e "s,/lib /usr/lib,/%{_lib} /usr/%{_lib},g" config.tests/{unix,x11}/*.test
 fi
+
+# MIPS does not accept -m64/-m32 flags
+%ifarch %{mips}
+sed -i -e 's,-m32,,' mkspecs/linux-g++-32/qmake.conf
+sed -i -e 's,-m64,,' mkspecs/linux-g++-64/qmake.conf
+%endif
 
 # let makefile create missing .qm files, the .qm files should be included in qt upstream
 for f in translations/*.ts ; do
@@ -586,11 +653,30 @@ done
 
 %build
 
-# build shared, threaded (default) libraries
+# drop -fexceptions from $RPM_OPT_FLAGS
+RPM_OPT_FLAGS=`echo $RPM_OPT_FLAGS | sed 's|-fexceptions||g'`
+
+%if 0%{?fedora} > 23 || 0%{?rhel} > 7
+# workaround for class std::auto_ptr' is deprecated with gcc-6
+CXXFLAGS="$CXXFLAGS -std=gnu++98"
+# javascriptcore FTBFS with gcc-6
+CXXFLAGS="$CXXFLAGS -Wno-deprecated"
+%endif
+
+export QTDIR=$PWD
+export PATH=$PWD/bin:$PATH
+export LD_LIBRARY_PATH=$PWD/lib/
+# TODO: opensuse adds -DOPENSSL_LOAD_CONF, find out if we want that too -- rex
+export CXXFLAGS="$CXXFLAGS $RPM_OPT_FLAGS"
+export CFLAGS="$CFLAGS $RPM_OPT_FLAGS"
+export LDFLAGS="$LDFLAGS $RPM_LD_FLAGS"
+export MAKEFLAGS="%{?_smp_mflags}"
+
 ./configure -v \
   -confirm-license \
   -opensource \
   -optimized-qmake \
+  -fast \
   -prefix %{_qt4_prefix} \
   -bindir %{_qt4_bindir} \
   -datadir %{_qt4_datadir} \
@@ -634,7 +720,7 @@ done
   -xkb \
   -glib \
   -icu \
-  -openssl-linked \
+  %{?openssl} \
   -xmlpatterns \
   %{?dbus} %{!?dbus:-no-dbus} \
   %{?graphicssystem} \
@@ -649,13 +735,21 @@ done
   %{!?demos:-nomake demos} \
   %{!?examples:-nomake examples}
 
-# create Makefile correctly
-qtbuilddir=%{_builddir}/qt-everywhere-opensource-src-%{version}
-for d in complexpingpong pingpong ; do
-  pushd examples/dbus/$d
-  $qtbuilddir/bin/qmake -spec $qtbuilddir/mkspecs/%{platform}/
-  popd
-done
+# verify QT_BUILD_KEY
+grep '^#define QT_BUILD_KEY ' src/corelib/global/qconfig.h
+QT_BUILD_KEY_COMPILER="$(grep '^#define QT_BUILD_KEY ' src/corelib/global/qconfig.h | cut -d' ' -f5)"
+if [ "$QT_BUILD_KEY_COMPILER" != 'g++-4' ]; then
+  echo "QT_BUILD_KEY_COMPILER failure"
+  exit 1
+fi
+
+# ensure qmake build using optflags (which can happen if not munging qmake.conf defaults)
+make clean -C qmake
+make %{?_smp_mflags} -C qmake \
+  QMAKE_CFLAGS_RELEASE="${CFLAGS:-$RPM_OPT_FLAGS}" \
+  QMAKE_CXXFLAGS_RELEASE="${CXXFLAGS:-$RPM_OPT_FLAGS}" \
+  QMAKE_LFLAGS_RELEASE="${LDFLAGS:-$RPM_LD_FLAGS}" \
+  QMAKE_STRIP=
 
 make %{?_smp_mflags}
 
@@ -663,15 +757,13 @@ make %{?_smp_mflags}
 %{?qvfb:make %{?_smp_mflags} -C tools/qvfb}
 
 # recreate .qm files
-LD_LIBRARY_PATH=`pwd`/lib bin/lrelease translations/*.ts
+bin/lrelease translations/*.ts
 
 
 %install
 rm -rf %{buildroot}
 
 make install INSTALL_ROOT=%{buildroot}
-
-install -m 0644 src/corelib/arch/qatomic_aarch64.h %{buildroot}%{_qt4_headerdir}/QtCore/qatomic_aarch64.h
 
 %if 0%{?qvfb}
 make install INSTALL_ROOT=%{buildroot} -C tools/qvfb
@@ -700,7 +792,9 @@ desktop-file-install \
 # strip extraneous dirs/libraries
 # safe ones
 glib2_libs=$(pkg-config --libs glib-2.0 gobject-2.0 gthread-2.0)
+if [ "%{?openssl}" == "-openssl-linked" ]; then
 ssl_libs=$(pkg-config --libs openssl)
+fi
 for dep in \
   -laudio -ldbus-1 -lfreetype -lfontconfig ${glib2_libs} \
   -ljpeg -lm -lmng -lpng -lpulse -lpulse-mainloop-glib ${ssl_libs} -lsqlite3 -lz \
@@ -718,7 +812,7 @@ done
 
 # nuke dangling reference(s) to %buildroot
 sed -i -e "/^QMAKE_PRL_BUILD_DIR/d" %{buildroot}%{_qt4_libdir}/*.prl
-sed -i -e "s|-L%{_builddir}/qt-everywhere-opensource-src-%{version}%{?pre:-%{pre}}/lib||g" \
+sed -i -e "s|-L%{_builddir}/qt-everywhere-opensource-src-%{version}%{?beta:-%{beta}}/lib||g" \
   %{buildroot}%{_qt4_libdir}/pkgconfig/*.pc \
   %{buildroot}%{_qt4_libdir}/*.prl
 
@@ -736,19 +830,17 @@ rm -rf %{buildroot}%{_qt4_prefix}/doc
 ln -s  ../../share/doc/qt4 %{buildroot}%{_qt4_prefix}/doc
 %endif
 
-# let rpm handle binaries conflicts
+# hardlink files to %{_bindir}, add -qt4 postfix to not conflict
 mkdir %{buildroot}%{_bindir}
 pushd %{buildroot}%{_qt4_bindir}
 for i in * ; do
   case "${i}" in
     assistant|designer|linguist|lrelease|lupdate|moc|qmake|qtconfig|qtdemo|uic)
-      mv $i ../../../bin/${i}-qt4
-      ln -s ../../../bin/${i}-qt4 .
-      ln -s ../../../bin/${i}-qt4 $i
+      ln -v  ${i} %{buildroot}%{_bindir}/${i}-qt4
+      ln -sv ${i} ${i}-qt4
       ;;
     *)
-      mv $i ../../../bin/
-      ln -s ../../../bin/$i .
+      ln -v  ${i} %{buildroot}%{_bindir}/${i}
       ;;
   esac
 done
@@ -858,6 +950,15 @@ cat >%{buildroot}%{rpm_macros_dir}/macros.qt4<<EOF
     QMAKE_LFLAGS="\${LDFLAGS:-%%?__global_ldflags}"
 EOF
 
+install -p -m644 -D %{SOURCE1} \
+  %{buildroot}%{rpm_macros_dir}/macros.qt4
+sed -i \
+  -e "s|@@NAME@@|%{name}|g" \
+  -e "s|@@EPOCH@@|%{?epoch}%{!?epoch:0}|g" \
+  -e "s|@@VERSION@@|%{version}|g" \
+  -e "s|@@EVR@@|%{?epoch:%{epoch}:}%{version}-%{release}|g" \
+  %{buildroot}%{rpm_macros_dir}/macros.qt4
+
 # create/own stuff under %%_qt4_docdir
 mkdir -p %{buildroot}%{_qt4_docdir}/{html,qch,src}
 
@@ -894,7 +995,8 @@ rm -frv %{buildroot}%{_qt4_prefix}/tests/
 %find_lang assistant --with-qt --without-mo
 %find_lang qt_help --with-qt --without-mo
 %find_lang qtconfig --with-qt --without-mo
-cat assistant.lang qt_help.lang qtconfig.lang >qt-x11.lang
+%find_lang qtscript --with-qt --without-mo
+cat assistant.lang qt_help.lang qtconfig.lang qtscript.lang >qt-x11.lang
 
 %find_lang designer --with-qt --without-mo
 %find_lang linguist --with-qt --without-mo
@@ -1028,6 +1130,7 @@ fi
 %{_qt4_bindir}/pixeltool*
 %{_qt4_bindir}/qdoc3*
 %{_qt4_bindir}/qmake*
+%{_qt4_bindir}/qmlviewer*
 %{_qt4_bindir}/qmlplugindump
 %{_qt4_bindir}/qt3to4
 %{_qt4_bindir}/qttracereplay
@@ -1046,16 +1149,17 @@ fi
 %{_bindir}/lrelease*
 %{_bindir}/lupdate*
 %{_bindir}/moc*
-%{_bindir}/qmake*
 %{_bindir}/uic*
 %{_bindir}/designer*
 %{_bindir}/linguist*
 %{_bindir}/lconvert
 %{_bindir}/pixeltool
+%{_bindir}/qcollectiongenerator
 %{_bindir}/qdoc3
+%{_bindir}/qmake*
+%{_bindir}/qmlviewer*
 %{_bindir}/qt3to4
 %{_bindir}/qttracereplay
-%{_bindir}/qcollectiongenerator
 %if 0%{?dbus:1}
 %{_bindir}/qdbuscpp2xml
 %{_bindir}/qdbusxml2cpp
@@ -1198,10 +1302,6 @@ fi
 %exclude %{_qt4_plugindir}/designer/libqwebview.so
 %endif
 %exclude %{_qt4_plugindir}/sqldrivers
-%if "%{_qt4_bindir}" != "%{_bindir}"
-%{_bindir}/qmlviewer
-%endif
-%{_qt4_bindir}/qmlviewer
 %{_datadir}/icons/hicolor/*/apps/qt4-logo.*
 
 %if 0%{?dbus:1}
@@ -1228,13 +1328,22 @@ fi
 
 
 %changelog
-* Mon Sep 11 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.5-15
-- Fix data corruption in readData()
-  Resolves: bz#1489851
+* Thu Mar 21 2019 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-3
+- Revert fix for font cache check in QFontEngineFT::recalcAdvances()
+  Resolves: bz#1684167
 
-* Wed May 24 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.5-14
+* Thu Sep 14 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-2
+- Update aarch64 patch
+  Resolves: bz#1484361
+
+* Mon Aug 28 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.7-1
+- Update to 4.8.7 (+ sync with Fedora)
+  Resolves: bz#1484361
+
 - Don't close Qt apps in Gnome on shutdown dialog
   Resolves: bz#1378865
+
+* Wed May 24 2017 Jan Grulich <jgrulich@redhat.com> - 1:4.8.5-14
 
 * Mon May 02 2016 Jan Grulich <jgrulich@redhat.com> - 1:4.8.5-13
 - Prefer adwaita-qt theme over gtk

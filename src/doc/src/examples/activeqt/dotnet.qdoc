@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the documentation of the Qt Toolkit.
 **
@@ -10,9 +10,9 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
@@ -310,9 +310,8 @@
     since this includes subclasses of QObject and QWidget we can wrap
     any of our datatypes into a QObject subclass to make its API
     available to .NET. This has the positive side effect that the same
-    API is automatically available in
-    \l{http://qt.nokia.com/products/qsa/}{QSA}, the cross platform
-    scripting solution for Qt applications, and to COM clients in general.
+    API is automatically available when using \l QtScript to automate
+    Qt applications and to COM clients in general.
 
     When using the "IJW" method, in principle the only limitation is the
     time required to write the wrapper classes and data type conversion

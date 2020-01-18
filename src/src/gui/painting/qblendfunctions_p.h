@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -60,7 +60,7 @@ QT_BEGIN_NAMESPACE
 
 template <typename SRC, typename T>
 void qt_scale_image_16bit(uchar *destPixels, int dbpl,
-                          const uchar *srcPixels, int sbpl,
+                          const uchar *srcPixels, int sbpl, int sh,
                           const QRectF &targetRect,
                           const QRectF &srcRect,
                           const QRect &clip,
@@ -136,9 +136,18 @@ void qt_scale_image_16bit(uchar *destPixels, int dbpl,
 
     quint16 *dst = ((quint16 *) (destPixels + ty1 * dbpl)) + tx1;
 
+    // this bounds check here is required as floating point rounding above might in some cases lead to
+    // w/h values that are one pixel too large, falling outside of the valid image area.
+    int yend = (srcy + iy * (h - 1)) >> 16;
+    if (yend < 0 || yend >= sh)
+        --h;
+    int xend = (basex + ix * (w - 1)) >> 16;
+    if (xend < 0 || xend >= (int)(sbpl/sizeof(quint32)))
+        --w;
+
     while (h--) {
         const SRC *src = (const SRC *) (srcPixels + (srcy >> 16) * sbpl);
-        int srcx = basex;
+        quint32 srcx = basex;
         int x = 0;
         for (; x<w-7; x+=8) {
             blender.write(&dst[x], src[srcx >> 16]); srcx += ix;
@@ -161,7 +170,7 @@ void qt_scale_image_16bit(uchar *destPixels, int dbpl,
 }
 
 template <typename T> void qt_scale_image_32bit(uchar *destPixels, int dbpl,
-                                                const uchar *srcPixels, int sbpl,
+                                                const uchar *srcPixels, int sbpl, int sh,
                                                 const QRectF &targetRect,
                                                 const QRectF &srcRect,
                                                 const QRect &clip,
@@ -236,9 +245,18 @@ template <typename T> void qt_scale_image_32bit(uchar *destPixels, int dbpl,
 
     quint32 *dst = ((quint32 *) (destPixels + ty1 * dbpl)) + tx1;
 
+    // this bounds check here is required as floating point rounding above might in some cases lead to
+    // w/h values that are one pixel too large, falling outside of the valid image area.
+    int yend = (srcy + iy * (h - 1)) >> 16;
+    if (yend < 0 || yend >= sh)
+        --h;
+    int xend = (basex + ix * (w - 1)) >> 16;
+    if (xend < 0 || xend >= (int)(sbpl/sizeof(quint32)))
+        --w;
+
     while (h--) {
         const uint *src = (const quint32 *) (srcPixels + (srcy >> 16) * sbpl);
-        int srcx = basex;
+        quint32 srcx = basex;
         int x = 0;
         for (; x<w; ++x) {
             blender.write(&dst[x], src[srcx >> 16]);

@@ -171,24 +171,24 @@
  CONFIG += qt plugin
  QT += declarative
 
- DESTDIR = com/nokia/TimeExample
+ DESTDIR = org/qtproject/TimeExample
  TARGET  = qmlqtimeexampleplugin
 
  SOURCES += plugin.cpp
 
  qdeclarativesources.files += \
-     com/nokia/TimeExample/qmldir \
-     com/nokia/TimeExample/center.png \
-     com/nokia/TimeExample/clock.png \
-     com/nokia/TimeExample/Clock.qml \
-     com/nokia/TimeExample/hour.png \
-     com/nokia/TimeExample/minute.png
+     org/qtproject/TimeExample/qmldir \
+     org/qtproject/TimeExample/center.png \
+     org/qtproject/TimeExample/clock.png \
+     org/qtproject/TimeExample/Clock.qml \
+     org/qtproject/TimeExample/hour.png \
+     org/qtproject/TimeExample/minute.png
 
- qdeclarativesources.path += $$[QT_INSTALL_EXAMPLES]/declarative/cppextensions/plugins/com/nokia/TimeExample
+ qdeclarativesources.path += $$[QT_INSTALL_EXAMPLES]/declarative/cppextensions/plugins/org/qtproject/TimeExample
 
  sources.files += plugins.pro plugin.cpp plugins.qml README
  sources.path += $$[QT_INSTALL_EXAMPLES]/declarative/cppextensions/plugins
- target.path += $$[QT_INSTALL_EXAMPLES]/declarative/cppextensions/plugins/com/nokia/TimeExample
+ target.path += $$[QT_INSTALL_EXAMPLES]/declarative/cppextensions/plugins/org/qtproject/TimeExample
 
  build_all:!build_pass {
      CONFIG -= build_all
@@ -213,8 +213,8 @@
   </div> 
   <div class="footer">
     <p>
-      <acronym title="Copyright">&copy;</acronym> 2013 Digia Plc and/or its
-      subsidiaries. Documentation contributions included herein are the copyrights of
+      <acronym title="Copyright">&copy;</acronym> 2015 The Qt Company Ltd.
+      Documentation contributions included herein are the copyrights of
       their respective owners.</p>
     <br />
     <p>
@@ -226,7 +226,7 @@
       www.qt-project.org</a>.</p>
     <br />
     <p>
-      Digia, Qt and their respective logos are trademarks of Digia Plc 
+      Qt and respective logos are trademarks of The Qt Company Ltd 
       in Finland and/or other countries worldwide. All other trademarks are property
       of their respective owners. <a title="Privacy Policy"
       href="http://en.gitorious.org/privacy_policy/">Privacy Policy</a></p>

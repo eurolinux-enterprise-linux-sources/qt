@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -225,6 +225,41 @@ extern void qt_mac_update_cursor(); // qcursor_mac.mm
 // Forward Decls
 void onApplicationWindowChangedActivation( QWidget*widget, bool activated );
 void onApplicationChangedActivation( bool activated );
+
+#ifdef QT_MAC_USE_COCOA
+void qt_mac_loadMenuNib(QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *qtMenuLoader)
+{
+    // Create qt_menu.nib dir in temp.
+    QDir temp = QDir::temp();
+    temp.mkdir("qt_menu.nib");
+    QString nibDir = temp.canonicalPath() + QLatin1String("/") + QLatin1String("qt_menu.nib/");
+    if (!QDir(nibDir).exists()) {
+        qWarning("qt_mac_loadMenuNib: could not create nib directory in temp");
+        return;
+    }
+
+    // Copy nib files from resources to temp.
+    QDir nibResource(":/trolltech/mac/qt_menu.nib/");
+    if (!nibResource.exists()) {
+        qWarning("qt_mac_loadMenuNib: could not load nib from resources");
+        return;
+    }
+    foreach (const QFileInfo &file, nibResource.entryInfoList())
+        QFile::copy(file.absoluteFilePath(), nibDir + QLatin1String("/") + file.fileName());
+
+    // Load and instantiate nib file from temp
+    NSURL *nibUrl = [NSURL fileURLWithPath : const_cast<NSString *>(reinterpret_cast<const NSString *>(QCFString::toCFStringRef(nibDir)))];
+    NSNib *nib = [[NSNib alloc] initWithContentsOfURL : nibUrl];
+    [nib autorelease];
+    if (!nib) {
+        qWarning("qt_mac_loadMenuNib: could not load nib from temp");
+        return;
+    }
+    bool ok = [nib instantiateNibWithOwner : qtMenuLoader topLevelObjects : nil];
+    if (!ok)
+        qWarning("qt_mac_loadMenuNib: could not instantiate nib");
+}
+#endif
 
 static void qt_mac_read_fontsmoothing_settings()
 {
@@ -433,7 +468,7 @@ void qt_mac_set_app_icon(const QPixmap &pixmap)
         image = static_cast<NSImage *>(qt_mac_create_nsimage(pixmap));
     }
 
-    [NSApp setApplicationIconImage:image];
+    [[NSApplication sharedApplication] setApplicationIconImage:image];
     [image release];
 #endif
 }
@@ -715,7 +750,7 @@ void qt_event_request_showsheet(QWidget *w)
     Q_ASSERT(qt_mac_is_macsheet(w));
 #ifdef QT_MAC_USE_COCOA
     w->repaint();
-    [NSApp beginSheet:qt_mac_window_for(w) modalForWindow:qt_mac_window_for(w->parentWidget())
+    [[NSApplication sharedApplication] beginSheet:qt_mac_window_for(w) modalForWindow:qt_mac_window_for(w->parentWidget())
         modalDelegate:nil didEndSelector:nil contextInfo:0];
 #else
     qt_mac_event_remove(request_showsheet_pending);
@@ -957,7 +992,7 @@ Q_GUI_EXPORT void qt_mac_set_dock_menu(QMenu *menu)
 {
     qt_mac_dock_menu = menu;
 #ifdef QT_MAC_USE_COCOA
-    [NSApp setDockMenu:menu->macMenu()];
+    [[NSApplication sharedApplication] setDockMenu:menu->macMenu()];
 #else
     SetApplicationDockTileMenu(menu->macMenu());
 #endif
@@ -976,7 +1011,7 @@ void qt_mac_event_release(QWidget *w)
 #ifndef QT_MAC_USE_COCOA
             SetApplicationDockTileMenu(0);
 #else
-            [NSApp setDockMenu:0];
+            [[NSApplication sharedApplication] setDockMenu:0];
 #endif
         }
     }
@@ -1258,15 +1293,10 @@ void qt_init(QApplicationPrivate *priv, int)
         [cocoaApp setDelegate:newDelegate];
 
         QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *qtMenuLoader = [[QT_MANGLE_NAMESPACE(QCocoaMenuLoader) alloc] init];
-        if ([NSBundle loadNibNamed:@"qt_menu" owner:qtMenuLoader] == false) {
-            qFatal("Qt internal error: qt_menu.nib could not be loaded. The .nib file"
-                   " should be placed in QtGui.framework/Versions/Current/Resources/ "
-                   " or in the resources directory of your application bundle.");
-        }
+        qt_mac_loadMenuNib(qtMenuLoader);
 
         [cocoaApp setMenu:[qtMenuLoader menu]];
         [newDelegate setMenuLoader:qtMenuLoader];
-        [qtMenuLoader release];
     }
 #endif
     // Register for Carbon tablet proximity events on the event monitor target.
@@ -1433,7 +1463,7 @@ QWidget *QApplication::topLevelAt(const QPoint &p)
     NSWindowList(windowCount, windowList.data());
     int firstQtWindowFound = -1;
     for (int i = 0; i < windowCount; ++i) {
-        NSWindow *window = [NSApp windowWithWindowNumber:windowList[i]];
+        NSWindow *window = [[NSApplication sharedApplication] windowWithWindowNumber:windowList[i]];
         if (window) {
             QWidget *candidateWindow = [window QT_MANGLE_NAMESPACE(qt_qwidget)];
             if (candidateWindow && firstQtWindowFound == -1)
@@ -3041,7 +3071,7 @@ bool QApplicationPrivate::canQuit()
 #else
     Q_Q(QApplication);
 #ifdef QT_MAC_USE_COCOA
-    [[NSApp mainMenu] cancelTracking];
+    [[[NSApplication sharedApplication] mainMenu] cancelTracking];
 #else
     HiliteMenu(0);
 #endif
@@ -3116,7 +3146,7 @@ void onApplicationChangedActivation( bool activated )
         }
 
         if (!app->activeWindow()) {
-            OSWindowRef wp = [NSApp keyWindow];
+            OSWindowRef wp = [[NSApplication sharedApplication] keyWindow];
             if (QWidget *tmp_w = qt_mac_find_window(wp))
                 app->setActiveWindow(tmp_w);
         }

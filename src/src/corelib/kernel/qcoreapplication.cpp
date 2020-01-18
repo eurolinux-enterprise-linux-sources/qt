@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -64,6 +64,7 @@
 #include <private/qfactoryloader_p.h>
 #include <private/qfunctions_p.h>
 #include <private/qlocale_p.h>
+#include <private/qmutexpool_p.h>
 
 #ifdef Q_OS_SYMBIAN
 #  include <exception>
@@ -203,15 +204,18 @@ QString QCoreApplicationPrivate::macMenuBarName()
 #endif
 QString QCoreApplicationPrivate::appName() const
 {
-    static QString applName;
+    QMutexLocker locker(QMutexPool::globalInstanceGet(&applicationName));
+
+    if (applicationName.isNull()) {
 #ifdef Q_OS_MAC
-    applName = macMenuBarName();
+        applicationName = macMenuBarName();
 #endif
-    if (applName.isEmpty() && argv[0]) {
-        char *p = strrchr(argv[0], '/');
-        applName = QString::fromLocal8Bit(p ? p + 1 : argv[0]);
+        if (applicationName.isEmpty() && argv[0]) {
+            char *p = strrchr(argv[0], '/');
+            applicationName = QString::fromLocal8Bit(p ? p + 1 : argv[0]);
+        }
     }
-    return applName;
+    return applicationName;
 }
 #endif
 
@@ -334,12 +338,14 @@ public:
   Create an instance of Trolltech.conf. This ensures that the settings will not
   be thrown out of QSetting's cache for unused settings.
   */
+#ifndef QT_NO_SETTINGS
 Q_GLOBAL_STATIC_WITH_ARGS(QSettings, staticTrolltechConf, (QSettings::UserScope, QLatin1String("Trolltech")))
 
 QSettings *QCoreApplicationPrivate::trolltechConf()
 {
     return staticTrolltechConf();
 }
+#endif
 
 Q_CORE_EXPORT uint qGlobalPostedEventsCount()
 {
@@ -373,13 +379,13 @@ struct QCoreApplicationData {
 #ifndef QT_NO_LIBRARY
         delete app_libpaths;
 #endif
-
+#ifndef QT_NO_QOBJECT
         // cleanup the QAdoptedThread created for the main() thread
-       if (QCoreApplicationPrivate::theMainThread) {
-           QThreadData *data = QThreadData::get2(QCoreApplicationPrivate::theMainThread);
-           QCoreApplicationPrivate::theMainThread = 0;
-           data->deref(); // deletes the data and the adopted thread
-       }
+        if (QCoreApplicationPrivate::theMainThread) {
+            QThreadData *data = QThreadData::get2(QCoreApplicationPrivate::theMainThread);
+            data->deref(); // deletes the data and the adopted thread
+        }
+#endif
     }
 
 #ifdef Q_OS_BLACKBERRY
@@ -2356,6 +2362,9 @@ QStringList QCoreApplication::arguments()
     organizationName(). On all other platforms, QSettings uses
     organizationName() as the organization.
 
+    On BlackBerry this property is read-only. It is obtained from the
+    BAR application descriptor file.
+
     \sa organizationDomain applicationName
 */
 
@@ -2405,6 +2414,9 @@ QString QCoreApplication::organizationDomain()
     using the empty constructor. This saves having to repeat this
     information each time a QSettings object is created.
 
+    On BlackBerry this property is read-only. It is obtained from the
+    BAR application descriptor file.
+
     \sa organizationName organizationDomain applicationVersion
 */
 void QCoreApplication::setApplicationName(const QString &application)
@@ -2417,13 +2429,21 @@ QString QCoreApplication::applicationName()
 #ifdef Q_OS_BLACKBERRY
     coreappdata()->loadManifest();
 #endif
-    return coreappdata()->application;
+
+    QString appname = coreappdata() ? coreappdata()->application : QString();
+    if (appname.isEmpty() && QCoreApplication::self)
+        appname = QCoreApplication::self->d_func()->appName();
+
+    return appname;
 }
 
 /*!
     \property QCoreApplication::applicationVersion
     \since 4.4
     \brief the version of this application
+
+    On BlackBerry this property is read-only. It is obtained from the
+    BAR application descriptor file.
 
     \sa applicationName organizationName organizationDomain
 */

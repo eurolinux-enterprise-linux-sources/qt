@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,20 +10,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -33,7 +34,6 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -86,6 +86,12 @@ bool GetKeyboardState(unsigned char* kbuffer)
     return true;
 }
 #endif
+
+// We not only need the scancode itself but also the extended bit of key messages. Thus we need
+// the additional bit when masking the scancode.
+enum { scancodeBitmask = 0x1ff };
+
+
 // Key recorder ------------------------------------------------------------------------[ start ] --
 struct KeyRecord {
     KeyRecord(int c, int a, int s, const QString &t) : code(c), ascii(a), state(s), text(t) {}
@@ -662,7 +668,7 @@ void QKeyMapperPrivate::updateKeyMap(const MSG &msg)
 {
     unsigned char kbdBuffer[256]; // Will hold the complete keyboard state
     GetKeyboardState(kbdBuffer);
-    quint32 scancode = (msg.lParam >> 16) & 0xfff;
+    const quint32 scancode = (msg.lParam >> 16) & scancodeBitmask;
     updatePossibleKeyCodes(kbdBuffer, scancode, msg.wParam);
 }
 
@@ -725,8 +731,8 @@ void QKeyMapperPrivate::updatePossibleKeyCodes(unsigned char *kbdBuffer, quint32
     }
     keyLayout[vk_key]->qtKey[8] = fallbackKey;
 
-    // If this vk_key a Dead Key
-    if (MapVirtualKey(vk_key, 2) & 0x80000000) {
+    // If this vk_key makes a dead key with any combination of modifiers
+    if (keyLayout[vk_key]->deadkeys) {
         // Push a Space, then the original key through the low-level ToAscii functions.
         // We do this because these functions (ToAscii / ToUnicode) will alter the internal state of
         // the keyboard driver By doing the following, we set the keyboard driver state back to what
@@ -767,8 +773,11 @@ extern bool qt_use_rtl_extensions;
 QList<int> QKeyMapperPrivate::possibleKeys(QKeyEvent *e)
 {
     QList<int> result;
+    const quint32 nativeVirtualKey = e->nativeVirtualKey();
+    if (nativeVirtualKey > 255)
+        return result;
 
-    KeyboardLayoutItem *kbItem = keyLayout[e->nativeVirtualKey()];
+    KeyboardLayoutItem *kbItem = keyLayout[nativeVirtualKey];
     if(!kbItem)
         return result;
 
@@ -797,10 +806,15 @@ bool QKeyMapperPrivate::translateKeyEvent(QWidget *widget, const MSG &msg, bool 
     bool k0 = false;
     bool k1 = false;
     int  msgType = msg.message;
+    // WM_(IME_)CHAR messages already contain the character in question so there is
+    // no need to fiddle with our key map. In any other case add this key to the
+    // keymap if it is not present yet.
+    if (msg.message != WM_CHAR && msg.message != WM_IME_CHAR)
+        updateKeyMap(msg);
 
-    quint32 scancode = (msg.lParam >> 16) & 0xfff;
-    quint32 vk_key = MapVirtualKey(scancode, 1);
-    bool isNumpad = (msg.wParam >= VK_NUMPAD0 && msg.wParam <= VK_NUMPAD9);
+    const quint32 scancode = (msg.lParam >> 16) & scancodeBitmask;
+    const quint32 vk_key = msg.wParam;
+
     quint32 nModifiers = 0;
 
 #if defined(Q_OS_WINCE)
@@ -834,10 +848,6 @@ bool QKeyMapperPrivate::translateKeyEvent(QWidget *widget, const MSG &msg, bool 
     state |= (nModifiers & ControlAny ? int(Qt::ControlModifier) : 0);
     state |= (nModifiers & AltAny ? int(Qt::AltModifier) : 0);
     state |= (nModifiers & MetaAny ? int(Qt::MetaModifier) : 0);
-
-    // Now we know enough to either have MapVirtualKey or our own keymap tell us if it's a deadkey
-    bool isDeadKey = isADeadKey(msg.wParam, state)
-                     || MapVirtualKey(msg.wParam, 2) & 0x80000000;
 
     // A multi-character key not found by our look-ahead
     if (msgType == WM_CHAR) {
@@ -921,23 +931,12 @@ bool QKeyMapperPrivate::translateKeyEvent(QWidget *widget, const MSG &msg, bool 
             return true;
 
         // Translate VK_* (native) -> Key_* (Qt) keys
-        // If it's a dead key, we cannot use the toKeyOrUnicode() function, since that will change
-        // the internal state of the keyboard driver, resulting in that dead keys no longer works.
-        // ..also if we're typing numbers on the keypad, while holding down the Alt modifier.
-        int code = 0;
-        if (isNumpad && (nModifiers & AltAny)) {
-            code = winceKeyBend(msg.wParam);
-        } else if (!isDeadKey) {
-            // QTBUG-8764, QTBUG-10032
-            // Can't call toKeyOrUnicode because that would call ToUnicode, and, if a dead key
-            // is pressed at the moment, Windows would NOT use it to compose a character for the next
-            // WM_CHAR event.
+        int modifiersIndex = 0;
+        modifiersIndex |= (nModifiers & ShiftAny ? 0x1 : 0);
+        modifiersIndex |= (nModifiers & ControlAny ? 0x2 : 0);
+        modifiersIndex |= (nModifiers & AltAny ? 0x4 : 0);
 
-            // Instead, use MapVirtualKey, which will provide adequate values.
-            code = MapVirtualKey(msg.wParam, MAPVK_VK_TO_CHAR);
-            if (code < 0x20 || code == 0x7f) // The same logic as in toKeyOrUnicode()
-                code = winceKeyBend(msg.wParam);
-        }
+        int code = keyLayout[vk_key]->qtKey[modifiersIndex];
 
         // Invert state logic:
         // If the key actually pressed is a modifier key, then we remove its modifier key from the
@@ -971,6 +970,7 @@ bool QKeyMapperPrivate::translateKeyEvent(QWidget *widget, const MSG &msg, bool 
             case Qt::Key_Plus:
             case Qt::Key_Minus:
             case Qt::Key_Period:
+            case Qt::Key_Comma:
             case Qt::Key_0:
             case Qt::Key_1:
             case Qt::Key_2:
