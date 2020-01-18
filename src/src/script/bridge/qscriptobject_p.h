@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtScript module of the Qt Toolkit.
 **
@@ -15,7 +15,7 @@
 ** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** If you have questions regarding the use of this file, please contact
-** us via http://www.qt.io/contact-us/.
+** us via http://www.qt-project.org/.
 **
 ** $QT_END_LICENSE$
 **

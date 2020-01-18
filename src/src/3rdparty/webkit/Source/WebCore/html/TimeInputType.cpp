@@ -64,7 +64,9 @@ DateComponents::Type TimeInputType::dateType() const
 double TimeInputType::defaultValueForStepUp() const
 {
     double current = currentTimeMS();
-    int offset = calculateLocalTimeOffset(current).offset / msPerMinute;
+    double utcOffset = calculateUTCOffset();
+    double dstOffset = calculateDSTOffset(current, utcOffset);
+    int offset = static_cast<int>((utcOffset + dstOffset) / msPerMinute);
     current += offset * msPerMinute;
 
     DateComponents date;

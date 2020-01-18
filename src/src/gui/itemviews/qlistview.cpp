@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -939,11 +939,6 @@ QStyleOptionViewItem QListView::viewOptions() const
     } else {
         option.decorationPosition = QStyleOptionViewItem::Left;
     }
-
-    if (d->gridSize().isValid()) {
-        option.rect.setSize(d->gridSize());
-    }
-
     return option;
 }
 
@@ -1857,57 +1852,18 @@ void QCommonListViewBase::removeHiddenRow(int row)
     dd->hiddenRows.remove(dd->model->index(row, 0, qq->rootIndex()));
 }
 
-#ifndef QT_NO_DRAGANDDROP
-void QCommonListViewBase::paintDragDrop(QPainter *painter)
-{
-    // FIXME: Until the we can provide a proper drop indicator
-    // in IconMode, it makes no sense to show it
-    dd->paintDropIndicator(painter);
-}
-#endif
-
 void QCommonListViewBase::updateHorizontalScrollBar(const QSize &step)
 {
     horizontalScrollBar()->setSingleStep(step.width() + spacing());
     horizontalScrollBar()->setPageStep(viewport()->width());
-
-    // If both scroll bars are set to auto, we might end up in a situation with enough space
-    // for the actual content. But still one of the scroll bars will become enabled due to
-    // the other one using the space. The other one will become invisible in the same cycle.
-    // -> Infinite loop, QTBUG-39902
-    const bool bothScrollBarsAuto = qq->verticalScrollBarPolicy() == Qt::ScrollBarAsNeeded &&
-                                    qq->horizontalScrollBarPolicy() == Qt::ScrollBarAsNeeded;
-
-    if (bothScrollBarsAuto && contentsSize.width() - qq->verticalScrollBar()->width() <= viewport()->width()
-                           && contentsSize.height() - qq->horizontalScrollBar()->height() <= viewport()->height()) {
-        // break the infinite loop described above by setting the range to 0, 0.
-        // QAbstractScrollArea will then hide the scroll bar for us
-        horizontalScrollBar()->setRange(0, 0);
-    } else {
-        horizontalScrollBar()->setRange(0, contentsSize.width() - viewport()->width());
-    }
+    horizontalScrollBar()->setRange(0, contentsSize.width() - viewport()->width());
 }
 
 void QCommonListViewBase::updateVerticalScrollBar(const QSize &step)
 {
     verticalScrollBar()->setSingleStep(step.height() + spacing());
     verticalScrollBar()->setPageStep(viewport()->height());
-
-    // If both scroll bars are set to auto, we might end up in a situation with enough space
-    // for the actual content. But still one of the scroll bars will become enabled due to
-    // the other one using the space. The other one will become invisible in the same cycle.
-    // -> Infinite loop, QTBUG-39902
-    const bool bothScrollBarsAuto = qq->verticalScrollBarPolicy() == Qt::ScrollBarAsNeeded &&
-                                    qq->horizontalScrollBarPolicy() == Qt::ScrollBarAsNeeded;
-
-    if (bothScrollBarsAuto && contentsSize.width() - qq->verticalScrollBar()->width() <= viewport()->width()
-                           && contentsSize.height() - qq->horizontalScrollBar()->height() <= viewport()->height()) {
-        // break the infinite loop described above by setting the range to 0, 0.
-        // QAbstractScrollArea will then hide the scroll bar for us
-        verticalScrollBar()->setRange(0, 0);
-    } else {
-        verticalScrollBar()->setRange(0, contentsSize.height() - viewport()->height());
-    }
+    verticalScrollBar()->setRange(0, contentsSize.height() - viewport()->height());
 }
 
 void QCommonListViewBase::scrollContentsBy(int dx, int dy, bool /*scrollElasticBand*/)
@@ -1965,6 +1921,13 @@ int QCommonListViewBase::horizontalScrollToValue(const int /*index*/, QListView:
 */
 
 #ifndef QT_NO_DRAGANDDROP
+void QListModeViewBase::paintDragDrop(QPainter *painter)
+{
+    // FIXME: Until the we can provide a proper drop indicator
+    // in IconMode, it makes no sense to show it
+    dd->paintDropIndicator(painter);
+}
+
 QAbstractItemView::DropIndicatorPosition QListModeViewBase::position(const QPoint &pos, const QRect &rect, const QModelIndex &index) const
 {
     QAbstractItemView::DropIndicatorPosition r = QAbstractItemView::OnViewport;
@@ -2706,6 +2669,23 @@ void QIconModeViewBase::removeHiddenRow(int row)
 }
 
 #ifndef QT_NO_DRAGANDDROP
+void QIconModeViewBase::paintDragDrop(QPainter *painter)
+{
+    if (!draggedItems.isEmpty() && viewport()->rect().contains(draggedItemsPos)) {
+        //we need to draw the items that arre dragged
+        painter->translate(draggedItemsDelta());
+        QStyleOptionViewItemV4 option = viewOptions();
+        option.state &= ~QStyle::State_MouseOver;
+        QVector<QModelIndex>::const_iterator it = draggedItems.begin();
+        QListViewItem item = indexToListViewItem(*it);
+        for (; it != draggedItems.end(); ++it) {
+            item = indexToListViewItem(*it);
+            option.rect = viewItemRect(item);
+            delegate(*it)->paint(painter, option, *it);
+        }
+    }
+}
+
 bool QIconModeViewBase::filterStartDrag(Qt::DropActions supportedActions)
 {
     // This function does the same thing as in QAbstractItemView::startDrag(),
@@ -2720,14 +2700,7 @@ bool QIconModeViewBase::filterStartDrag(Qt::DropActions supportedActions)
                     && (*it).column() == dd->column)
                     draggedItems.push_back(*it);
         }
-
-        QRect rect;
-        QPixmap pixmap = dd->renderToPixmap(indexes, &rect);
-        rect.adjust(horizontalOffset(), verticalOffset(), 0, 0);
-
         QDrag *drag = new QDrag(qq);
-        drag->setPixmap(pixmap);
-        drag->setHotSpot(dd->pressedPosition - rect.topLeft());
         drag->setMimeData(dd->model->mimeData(indexes));
         Qt::DropAction action = drag->exec(supportedActions, Qt::CopyAction);
         draggedItems.clear();

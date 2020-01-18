@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -1350,33 +1350,6 @@ void QWizardPrivate::updateCurrentPage()
     updateButtonTexts();
 }
 
-static QString object_name_for_button(QWizard::WizardButton which)
-{
-    switch (which) {
-    case QWizard::CommitButton:
-        return QLatin1String("qt_wizard_") + QLatin1String("commit");
-    case QWizard::FinishButton:
-        return QLatin1String("qt_wizard_") + QLatin1String("finish");
-    case QWizard::CancelButton:
-        return QLatin1String("qt_wizard_") + QLatin1String("cancel");
-    case QWizard::BackButton:
-    case QWizard::NextButton:
-    case QWizard::HelpButton:
-    case QWizard::CustomButton1:
-    case QWizard::CustomButton2:
-    case QWizard::CustomButton3:
-        // Make navigation buttons detectable as passive interactor in designer
-        return QLatin1String("__qt__passive_wizardbutton") + QString::number(which);
-    case QWizard::Stretch:
-    case QWizard::NoButton:
-    //case QWizard::NStandardButtons:
-    //case QWizard::NButtons:
-        ;
-    }
-    //Q_UNREACHABLE();
-    return QString();
-}
-
 bool QWizardPrivate::ensureButton(QWizard::WizardButton which) const
 {
     Q_Q(const QWizard);
@@ -1388,7 +1361,19 @@ bool QWizardPrivate::ensureButton(QWizard::WizardButton which) const
         QStyle *style = q->style();
         if (style != QApplication::style()) // Propagate style
             pushButton->setStyle(style);
-        pushButton->setObjectName(object_name_for_button(which));
+        // Make navigation buttons detectable as passive interactor in designer
+        switch (which) {
+            case QWizard::CommitButton:
+            case QWizard::FinishButton:
+            case QWizard::CancelButton:
+            break;
+        default: {
+            QString objectName = QLatin1String("__qt__passive_wizardbutton");
+            objectName += QString::number(which);
+            pushButton->setObjectName(objectName);
+        }
+            break;
+        }
 #ifdef Q_WS_MAC
         pushButton->setAutoDefault(false);
 #endif
@@ -3636,7 +3621,7 @@ bool QWizardPage::validatePage()
     from the rest of your implementation, whenever the value of isComplete()
     changes. This ensures that QWizard updates the enabled or disabled state of
     its buttons. An example of the reimplementation is
-    available \l{http://doc.qt.digia.com/qq/qq22-qwizard.html#validatebeforeitstoolate}
+    available \l{http://qt.nokia.com/doc/qq/qq22-qwizard.html#validatebeforeitstoolate}
     {here}.
 
     \sa completeChanged(), isFinalPage()

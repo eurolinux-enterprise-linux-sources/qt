@@ -204,7 +204,6 @@
 <tr><td class="memItemLeft rightAlign topAlign"> void </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#addColumn">addColumn</a></b> ( const char * <i>name</i>, T * <i>dummy</i> = 0 )</td></tr>
 <tr><td class="memItemLeft rightAlign topAlign"> const char * </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#benchmarkMetricName">benchmarkMetricName</a></b> ( QBenchmarkMetric <i>metric</i> )</td></tr>
 <tr><td class="memItemLeft rightAlign topAlign"> const char * </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#benchmarkMetricUnit">benchmarkMetricUnit</a></b> ( QBenchmarkMetric <i>metric</i> )</td></tr>
-<tr><td class="memItemLeft rightAlign topAlign"> const char * </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#currentAppName">currentAppName</a></b> ()</td></tr>
 <tr><td class="memItemLeft rightAlign topAlign"> const char * </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#currentDataTag">currentDataTag</a></b> ()</td></tr>
 <tr><td class="memItemLeft rightAlign topAlign"> bool </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#currentTestFailed">currentTestFailed</a></b> ()</td></tr>
 <tr><td class="memItemLeft rightAlign topAlign"> const char * </td><td class="memItemRight bottomAlign"><b><a href="qtest.html#currentTestFunction">currentTestFunction</a></b> ()</td></tr>
@@ -404,10 +403,6 @@
 <p>Retuns the units of measure for the specified <i>metric</i>.</p>
 <p>This function was introduced in Qt 4.7.</p>
 <!-- @@@benchmarkMetricUnit -->
-<!-- $$$currentAppName[overload1]$$$currentAppName -->
-<h3 class="fn"><a name="currentAppName"></a>const <span class="type">char</span> * QTest::<span class="name">currentAppName</span> ()</h3>
-<p>Returns the name of the binary that is currently executed.</p>
-<!-- @@@currentAppName -->
 <!-- $$$currentDataTag[overload1]$$$currentDataTag -->
 <h3 class="fn"><a name="currentDataTag"></a>const <span class="type">char</span> * QTest::<span class="name">currentDataTag</span> ()</h3>
 <p>Returns the name of the current test data. If the test doesn't have any assigned testdata, the function returns 0.</p>
@@ -733,7 +728,7 @@
 <!-- $$$QCOMPARE[overload1]$$$QCOMPARE -->
 <h3 class="fn"><a name="QCOMPARE"></a><span class="name">QCOMPARE</span> (  <i>actual</i>,  <i>expected</i> )</h3>
 <p>The QCOMPARE macro compares an <i>actual</i> value to an <i>expected</i> value using the equals operator. If <i>actual</i> and <i>expected</i> are identical, execution continues. If not, a failure is recorded in the test log and the test won't be executed further.</p>
-<p>In the case of comparing floats and doubles, <a href="qvector3d.html#qFuzzyCompare">qFuzzyCompare</a>() is used for comparing. This means that comparing to 0 will likely fail. One solution to this is to compare to 1, and add 1 to the produced output.</p>
+<p>In the case of comparing floats and doubles, <a href="qmatrix4x4.html#qFuzzyCompare">qFuzzyCompare</a>() is used for comparing. This means that comparing to 0 will likely fail. One solution to this is to compare to 1, and add 1 to the produced output.</p>
 <p>QCOMPARE tries to output the contents of the values if the comparison fails, so it is visible from the test log why the comparison failed.</p>
 <p>QCOMPARE is very strict on the data types. Both <i>actual</i> and <i>expected</i> have to be of the same type, otherwise the test won't compile. This prohibits unspecified behavior from being introduced; that is behavior that usually occurs when the compiler implicitly casts the argument.</p>
 <p>If you use QCOMPARE() to compare two <a href="qstringlist.html">QStringList</a> objects, it will start comparing the objects from the end of the lists.</p>
@@ -871,8 +866,8 @@
   </div> 
   <div class="footer">
     <p>
-      <acronym title="Copyright">&copy;</acronym> 2015 The Qt Company Ltd.
-      Documentation contributions included herein are the copyrights of
+      <acronym title="Copyright">&copy;</acronym> 2013 Digia Plc and/or its
+      subsidiaries. Documentation contributions included herein are the copyrights of
       their respective owners.</p>
     <br />
     <p>
@@ -884,7 +879,7 @@
       www.qt-project.org</a>.</p>
     <br />
     <p>
-      Qt and respective logos are trademarks of The Qt Company Ltd 
+      Digia, Qt and their respective logos are trademarks of Digia Plc 
       in Finland and/or other countries worldwide. All other trademarks are property
       of their respective owners. <a title="Privacy Policy"
       href="http://en.gitorious.org/privacy_policy/">Privacy Policy</a></p>

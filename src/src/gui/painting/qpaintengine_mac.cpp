@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -289,7 +289,7 @@ static CGMutablePathRef qt_mac_compose_path(const QPainterPath &p, float off=0)
 }
 
 CGColorSpaceRef QCoreGraphicsPaintEngine::m_genericColorSpace = 0;
-QHash<QWidget*, CGColorSpaceRef> QCoreGraphicsPaintEngine::m_displayColorSpaceHash; // window -> color space
+QHash<CGDirectDisplayID, CGColorSpaceRef> QCoreGraphicsPaintEngine::m_displayColorSpaceHash;
 bool QCoreGraphicsPaintEngine::m_postRoutineRegistered = false;
 
 CGColorSpaceRef QCoreGraphicsPaintEngine::macGenericColorSpace()
@@ -316,50 +316,45 @@ CGColorSpaceRef QCoreGraphicsPaintEngine::macGenericColorSpace()
 #endif
 }
 
+/*
+    Ideally, we should pass the widget in here, and use CGGetDisplaysWithRect() etc.
+    to support multiple displays correctly.
+*/
 CGColorSpaceRef QCoreGraphicsPaintEngine::macDisplayColorSpace(const QWidget *widget)
 {
-    // The color space depends on which screen the widget's window is on.
-    // widget == 0 is a spacial case where we use the main display.
-    QWidget *window = widget ? widget->window() : 0;
+    CGColorSpaceRef colorSpace;
 
-    // Check for cached color space and return if found.
-    if (m_displayColorSpaceHash.contains(window))
-        return m_displayColorSpaceHash.value(window);
-
-    // Find which display the window is on.
     CGDirectDisplayID displayID;
-    if (window == 0) {
+    CMProfileRef displayProfile = 0;
+    if (widget == 0) {
         displayID = CGMainDisplayID();
     } else {
-        const QRect &qrect = window->geometry();
+        const QRect &qrect = widget->window()->geometry();
         CGRect rect = CGRectMake(qrect.x(), qrect.y(), qrect.width(), qrect.height());
         CGDisplayCount throwAway;
         CGDisplayErr dErr = CGGetDisplaysWithRect(rect, 1, &displayID, &throwAway);
         if (dErr != kCGErrorSuccess)
-            displayID = CGMainDisplayID();
+            return macDisplayColorSpace(0); // fall back on main display
     }
+    if ((colorSpace = m_displayColorSpaceHash.value(displayID)))
+        return colorSpace;
 
-    // Get the color space from the display profile.
-    CGColorSpaceRef colorSpace = 0;
-    CMProfileRef displayProfile = 0;
     CMError err = CMGetProfileByAVID((CMDisplayIDType)displayID, &displayProfile);
     if (err == noErr) {
         colorSpace = CGColorSpaceCreateWithPlatformColorSpace(displayProfile);
-        CMCloseProfile(displayProfile);
+    } else if (widget) {
+        return macDisplayColorSpace(0); // fall back on main display
     }
 
-    // Fallback: use generic DeviceRGB
     if (colorSpace == 0)
         colorSpace = CGColorSpaceCreateDeviceRGB();
 
-    // Install cleanup routines
+    m_displayColorSpaceHash.insert(displayID, colorSpace);
+    CMCloseProfile(displayProfile);
     if (!m_postRoutineRegistered) {
         m_postRoutineRegistered = true;
         qAddPostRoutine(QCoreGraphicsPaintEngine::cleanUpMacColorSpaces);
     }
-
-    // Cache and return.
-    m_displayColorSpaceHash.insert(window, colorSpace);
     return colorSpace;
 }
 
@@ -369,7 +364,7 @@ void QCoreGraphicsPaintEngine::cleanUpMacColorSpaces()
         CFRelease(m_genericColorSpace);
         m_genericColorSpace = 0;
     }
-    QHash<QWidget*, CGColorSpaceRef>::const_iterator it = m_displayColorSpaceHash.constBegin();
+    QHash<CGDirectDisplayID, CGColorSpaceRef>::const_iterator it = m_displayColorSpaceHash.constBegin();
     while (it != m_displayColorSpaceHash.constEnd()) {
         if (it.value())
             CFRelease(it.value());
@@ -1065,11 +1060,6 @@ void QCoreGraphicsPaintEngine::initialize()
 
 void QCoreGraphicsPaintEngine::cleanup()
 {
-}
-
-void QCoreGraphicsPaintEngine::clearColorSpace(QWidget* w)
-{
-    m_displayColorSpaceHash.remove(w);
 }
 
 CGContextRef

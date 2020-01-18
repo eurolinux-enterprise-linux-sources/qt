@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -138,11 +138,6 @@
 # define __NR_inotify_add_watch 285
 # define __NR_inotify_rm_watch  286
 # define __NR_inotify_init1     328
-#elif defined (__aarch64__)
-# define __NR_inotify_init1     26
-# define __NR_inotify_add_watch 27
-# define __NR_inotify_rm_watch  28
-// no inotify_init for aarch64
 #else
 # error "This architecture is not supported. Please talk to qt-bugs@trolltech.com"
 #endif
@@ -160,11 +155,7 @@ static inline int syscall(...) { return -1; }
 
 static inline int inotify_init()
 {
-#ifdef __NR_inotify_init
     return syscall(__NR_inotify_init);
-#else
-    return syscall(__NR_inotify_init1, 0);
-#endif
 }
 
 static inline int inotify_add_watch(int fd, const char *name, __u32 mask)
@@ -229,7 +220,7 @@ QT_BEGIN_NAMESPACE
 
 QInotifyFileSystemWatcherEngine *QInotifyFileSystemWatcherEngine::create()
 {
-    int fd = -1;
+    register int fd = -1;
 #ifdef IN_CLOEXEC
     fd = inotify_init1(IN_CLOEXEC);
 #endif

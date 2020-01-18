@@ -15,10 +15,10 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "The Qt Company Ltd"
+            VALUE "CompanyName", "Digia Plc and/or its subsidiary(-ies)"
             VALUE "FileDescription", "Multiple Example (ActiveQt)"
             VALUE "FileVersion", "1.0.0.0"
-            VALUE "LegalCopyright", "Copyright (C) 2015 The Qt Company Ltd."
+            VALUE "LegalCopyright", "Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies)."
             VALUE "InternalName", "multipleax.dll"
             VALUE "OriginalFilename", "multipleax.dll"
             VALUE "ProductName", "Multiple Example (ActiveQt)"

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -35,15 +34,15 @@
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
 **
+**
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
 
 #include "qfileiconprovider.h"
-#include "qfileiconprovider_p.h"
 
 #ifndef QT_NO_FILEICONPROVIDER
-#include <qfileinfo.h>
+#include <qstyle.h>
 #include <qapplication.h>
 #include <qdir.h>
 #include <qpixmapcache.h>
@@ -88,14 +87,41 @@ QT_BEGIN_NAMESPACE
   \value File
 */
 
-QFileIconProviderPrivate::QFileIconProviderPrivate() :
-    homePath(QDir::home().absolutePath()), useCustomDirectoryIcons(true)
+class QFileIconProviderPrivate
 {
-}
+    Q_DECLARE_PUBLIC(QFileIconProvider)
 
-void QFileIconProviderPrivate::setUseCustomDirectoryIcons(bool enable)
+public:
+    QFileIconProviderPrivate();
+    QIcon getIcon(QStyle::StandardPixmap name) const;
+#ifdef Q_WS_WIN
+    QIcon getWinIcon(const QFileInfo &fi) const;
+#elif defined(Q_WS_MAC)
+    QIcon getMacIcon(const QFileInfo &fi) const;
+#endif
+    QFileIconProvider *q_ptr;
+    const QString homePath;
+
+private:
+    mutable QIcon file;
+    mutable QIcon fileLink;
+    mutable QIcon directory;
+    mutable QIcon directoryLink;
+    mutable QIcon harddisk;
+    mutable QIcon floppy;
+    mutable QIcon cdrom;
+    mutable QIcon ram;
+    mutable QIcon network;
+    mutable QIcon computer;
+    mutable QIcon desktop;
+    mutable QIcon trashcan;
+    mutable QIcon generic;
+    mutable QIcon home;
+};
+
+QFileIconProviderPrivate::QFileIconProviderPrivate() :
+    homePath(QDir::home().absolutePath())
 {
-    useCustomDirectoryIcons = enable;
 }
 
 QIcon QFileIconProviderPrivate::getIcon(QStyle::StandardPixmap name) const
@@ -218,34 +244,22 @@ static bool isCacheable(const QFileInfo &fi)
 QIcon QFileIconProviderPrivate::getWinIcon(const QFileInfo &fileInfo) const
 {
     QIcon retIcon;
-    static int defaultFolderIIcon = -1;
+    const QString fileExtension = QLatin1Char('.') + fileInfo.suffix().toUpper();
 
     QString key;
-    QPixmap pixmap;
-    // If it's a file, non-{exe,lnk,ico} then we might have it cached already
-    if (isCacheable(fileInfo)) {
-        const QString fileExtension = QLatin1Char('.') + fileInfo.suffix().toUpper();
+    if (isCacheable(fileInfo))
         key = QLatin1String("qt_") + fileExtension;
+
+    QPixmap pixmap;
+    if (!key.isEmpty()) {
         QPixmapCache::find(key, pixmap);
-        if (!pixmap.isNull()) {
-            retIcon.addPixmap(pixmap);
-            if (QPixmapCache::find(key + QLatin1Char('l'), pixmap))
-                retIcon.addPixmap(pixmap);
-            return retIcon;
-        }
     }
 
-    const bool cacheableDirIcon = fileInfo.isDir() && !fileInfo.isRoot();
-    if (!useCustomDirectoryIcons && defaultFolderIIcon >= 0 && cacheableDirIcon) {
-        // We already have the default folder icon, just return it
-        key = QString::fromLatin1("qt_dir_%1").arg(defaultFolderIIcon);
-        QPixmapCache::find(key, pixmap);
-        if (!pixmap.isNull()) {
+    if (!pixmap.isNull()) {
+        retIcon.addPixmap(pixmap);
+        if (QPixmapCache::find(key + QLatin1Char('l'), pixmap))
             retIcon.addPixmap(pixmap);
-            if (QPixmapCache::find(key + QLatin1Char('l'), pixmap))
-                retIcon.addPixmap(pixmap);
-            return retIcon;
-        }
+        return retIcon;
     }
 
     /* We don't use the variable, but by storing it statically, we
@@ -257,28 +271,17 @@ QIcon QFileIconProviderPrivate::getWinIcon(const QFileInfo &fileInfo) const
     unsigned long val = 0;
 
     //Get the small icon
-    unsigned int flags =
 #ifndef Q_OS_WINCE
-        SHGFI_ICON|SHGFI_SYSICONINDEX|SHGFI_ADDOVERLAYS|SHGFI_OVERLAYINDEX;
+    val = SHGetFileInfo((const wchar_t *)QDir::toNativeSeparators(fileInfo.filePath()).utf16(), 0, &info,
+                        sizeof(SHFILEINFO), SHGFI_ICON|SHGFI_SMALLICON|SHGFI_SYSICONINDEX|SHGFI_ADDOVERLAYS|SHGFI_OVERLAYINDEX);
 #else
-        SHGFI_SYSICONINDEX;
+    val = SHGetFileInfo((const wchar_t *)QDir::toNativeSeparators(fileInfo.filePath()).utf16(), 0, &info,
+                        sizeof(SHFILEINFO), SHGFI_SMALLICON|SHGFI_SYSICONINDEX);
 #endif
-
-    if (cacheableDirIcon && !useCustomDirectoryIcons) {
-        flags |= SHGFI_USEFILEATTRIBUTES;
-        val = SHGetFileInfo(L"dummy",
-                            FILE_ATTRIBUTE_DIRECTORY, &info,
-                            sizeof(SHFILEINFO), flags | SHGFI_SMALLICON);
-    } else {
-        val = SHGetFileInfo((const wchar_t *)QDir::toNativeSeparators(fileInfo.filePath()).utf16(),
-                            0, &info, sizeof(SHFILEINFO), flags | SHGFI_SMALLICON);
-    }
 
     // Even if GetFileInfo returns a valid result, hIcon can be empty in some cases
     if (val && info.hIcon) {
         if (fileInfo.isDir() && !fileInfo.isRoot()) {
-            if (!useCustomDirectoryIcons && defaultFolderIIcon < 0)
-                defaultFolderIIcon = info.iIcon;
             //using the unique icon index provided by windows save us from duplicate keys
             key = QString::fromLatin1("qt_dir_%1").arg(info.iIcon);
             QPixmapCache::find(key, pixmap);
@@ -309,9 +312,13 @@ QIcon QFileIconProviderPrivate::getWinIcon(const QFileInfo &fileInfo) const
     }
 
     //Get the big icon
-    val = SHGetFileInfo((const wchar_t *)QDir::toNativeSeparators(fileInfo.filePath()).utf16(),
-                0, &info, sizeof(SHFILEINFO), flags | SHGFI_LARGEICON);
-
+#ifndef Q_OS_WINCE
+    val = SHGetFileInfo((const wchar_t *)QDir::toNativeSeparators(fileInfo.filePath()).utf16(), 0, &info,
+                        sizeof(SHFILEINFO), SHGFI_ICON|SHGFI_LARGEICON|SHGFI_SYSICONINDEX|SHGFI_ADDOVERLAYS|SHGFI_OVERLAYINDEX);
+#else
+    val = SHGetFileInfo((const wchar_t *)QDir::toNativeSeparators(fileInfo.filePath()).utf16(), 0, &info,
+                        sizeof(SHFILEINFO), SHGFI_LARGEICON|SHGFI_SYSICONINDEX);
+#endif
     if (val && info.hIcon) {
         if (fileInfo.isDir() && !fileInfo.isRoot()) {
             //using the unique icon index provided by windows save us from duplicate keys

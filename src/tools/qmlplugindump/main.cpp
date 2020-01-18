@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -64,16 +64,9 @@
 #ifdef Q_OS_UNIX
 #include <signal.h>
 #endif
-#if defined(Q_OS_WIN)
-#  if !defined(Q_CC_MINGW)
-#    include <crtdbg.h>
-#  endif
-#include <qt_windows.h>
-#endif
 
 QString pluginImportPath;
 bool verbose = false;
-bool creatable = true;
 
 QString currentProperty;
 QString inObjectInstantiation;
@@ -225,33 +218,31 @@ QSet<const QMetaObject *> collectReachableMetaObjects(const QList<QDeclarativeTy
         qmlTypesByCppName[baseCpp] = baseExports;
     }
 
-    if (creatable) {
-        // find even more QMetaObjects by instantiating QML types and running
-        // over the instances
-        foreach (QDeclarativeType *ty, QDeclarativeMetaType::qmlTypes()) {
-            if (skip.contains(ty))
-                continue;
-            if (ty->isExtendedType())
-                continue;
-            if (!ty->isCreatable())
-                continue;
-            if (ty->typeName() == "QDeclarativeComponent")
-                continue;
+    // find even more QMetaObjects by instantiating QML types and running
+    // over the instances
+    foreach (QDeclarativeType *ty, QDeclarativeMetaType::qmlTypes()) {
+        if (skip.contains(ty))
+            continue;
+        if (ty->isExtendedType())
+            continue;
+        if (!ty->isCreatable())
+            continue;
+        if (ty->typeName() == "QDeclarativeComponent")
+            continue;
 
-            QByteArray tyName = ty->qmlTypeName();
-            tyName = tyName.mid(tyName.lastIndexOf('/') + 1);
-            if (tyName.isEmpty())
-                continue;
+        QByteArray tyName = ty->qmlTypeName();
+        tyName = tyName.mid(tyName.lastIndexOf('/') + 1);
+        if (tyName.isEmpty())
+            continue;
 
-            inObjectInstantiation = tyName;
-            QObject *object = ty->create();
-            inObjectInstantiation.clear();
+        inObjectInstantiation = tyName;
+        QObject *object = ty->create();
+        inObjectInstantiation.clear();
 
-            if (object)
-                collectReachableMetaObjects(object, &metas);
-            else
-                qWarning() << "Could not create" << tyName;
-        }
+        if (object)
+            collectReachableMetaObjects(object, &metas);
+        else
+            qWarning() << "Could not create" << tyName;
     }
 
     return metas;
@@ -491,8 +482,8 @@ void sigSegvHandler(int) {
 void printUsage(const QString &appName)
 {
     qWarning() << qPrintable(QString(
-                                 "Usage: %1 [-v] [-noinstantiate] [-[non]relocatable] module.uri version [module/import/path]\n"
-                                 "       %1 [-v] [-noinstantiate] -path path/to/qmldir/directory [version]\n"
+                                 "Usage: %1 [-v] [-[non]relocatable] module.uri version [module/import/path]\n"
+                                 "       %1 [-v] -path path/to/qmldir/directory [version]\n"
                                  "       %1 [-v] -builtins\n"
                                  "Example: %1 Qt.labs.particles 4.7 /home/user/dev/qt-install/imports").arg(
                                  appName));
@@ -500,13 +491,6 @@ void printUsage(const QString &appName)
 
 int main(int argc, char *argv[])
 {
-#if defined(Q_OS_WIN) && !defined(Q_CC_MINGW)
-    // we do not want windows popping up if the module loaded triggers an assert
-    SetErrorMode(SEM_NOGPFAULTERRORBOX);
-    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
-    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_DEBUG);
-    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
-#endif
 #ifdef Q_OS_UNIX
     // qmldump may crash, but we don't want any crash handlers to pop up
     // therefore we intercept the segfault and just exit() ourselves
@@ -560,9 +544,6 @@ int main(int argc, char *argv[])
                 action = Builtins;
             } else if (arg == QLatin1String("-v")) {
                 verbose = true;
-            } else if (arg == QLatin1String("--noinstantiate")
-                       || arg == QLatin1String("-noinstantiate")) {
-                creatable = false;
             } else {
                 qWarning() << "Invalid argument: " << arg;
                 return EXIT_INVALIDARGUMENTS;

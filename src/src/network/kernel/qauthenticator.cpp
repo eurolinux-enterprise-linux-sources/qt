@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtNetwork module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -141,7 +141,7 @@ QAuthenticator::QAuthenticator()
 */
 QAuthenticator::~QAuthenticator()
 {
-    if (d)
+    if (d && !d->ref.deref())
         delete d;
 }
 
@@ -149,10 +149,10 @@ QAuthenticator::~QAuthenticator()
     Constructs a copy of \a other.
 */
 QAuthenticator::QAuthenticator(const QAuthenticator &other)
-    : d(0)
+    : d(other.d)
 {
-    if (other.d)
-        *this = other;
+    if (d)
+        d->ref.ref();
 }
 
 /*!
@@ -163,23 +163,12 @@ QAuthenticator &QAuthenticator::operator=(const QAuthenticator &other)
     if (d == other.d)
         return *this;
 
-    // Do not share the d since challenge reponse/based changes
-    // could corrupt the internal store and different network requests
-    // can utilize different types of proxies.
-    detach();
-    if (other.d) {
-        d->user = other.d->user;
-        d->userDomain = other.d->userDomain;
-        d->workstation = other.d->workstation;
-        d->extractedUser = other.d->extractedUser;
-        d->password = other.d->password;
-        d->realm = other.d->realm;
-        d->method = other.d->method;
-        d->options = other.d->options;
-    } else if (d->phase == QAuthenticatorPrivate::Start) {
+    if (d && !d->ref.deref())
         delete d;
-        d = 0;
-    }
+
+    d = other.d;
+    if (d)
+        d->ref.ref();
     return *this;
 }
 
@@ -219,8 +208,28 @@ QString QAuthenticator::user() const
 void QAuthenticator::setUser(const QString &user)
 {
     detach();
-    d->user = user;
-    d->updateCredentials();
+    int separatorPosn = 0;
+
+    switch(d->method) {
+    case QAuthenticatorPrivate::Ntlm:
+        if((separatorPosn = user.indexOf(QLatin1String("\\"))) != -1) {
+            //domain name is present
+            d->realm.clear();
+            d->userDomain = user.left(separatorPosn);
+            d->extractedUser = user.mid(separatorPosn + 1);
+            d->user = user;
+        } else {
+            d->extractedUser = user;
+            d->user = user;
+	    d->realm.clear();
+            d->userDomain.clear();
+        }
+        break;
+    default:
+        d->user = user;
+        d->userDomain.clear();
+        break;
+    }
 }
 
 /*!
@@ -247,11 +256,12 @@ void QAuthenticator::detach()
 {
     if (!d) {
         d = new QAuthenticatorPrivate;
+        d->ref = 1;
         return;
     }
 
-    if (d->phase == QAuthenticatorPrivate::Done)
-        d->phase = QAuthenticatorPrivate::Start;
+    qAtomicDetach(d);
+    d->phase = QAuthenticatorPrivate::Start;
 }
 
 /*!
@@ -312,7 +322,8 @@ bool QAuthenticator::isNull() const
 }
 
 QAuthenticatorPrivate::QAuthenticatorPrivate()
-    : method(None)
+    : ref(0)
+    , method(None)
     , hasFailed(false)
     , phase(Start)
     , nonceCount(0)
@@ -336,33 +347,6 @@ void QAuthenticatorPrivate::parseHttpResponse(const QHttpResponseHeader &header,
     parseHttpResponse(rawValues, isProxy);
 }
 #endif
-
-QAuthenticatorPrivate::~QAuthenticatorPrivate()
-{
-}
-
-void QAuthenticatorPrivate::updateCredentials()
-{
-    int separatorPosn = 0;
-
-    switch (method) {
-    case QAuthenticatorPrivate::Ntlm:
-        if ((separatorPosn = user.indexOf(QLatin1String("\\"))) != -1) {
-            //domain name is present
-            realm.clear();
-            userDomain = user.left(separatorPosn);
-            extractedUser = user.mid(separatorPosn + 1);
-        } else {
-            extractedUser = user;
-            realm.clear();
-            userDomain.clear();
-        }
-        break;
-    default:
-        userDomain.clear();
-        break;
-    }
-}
 
 void QAuthenticatorPrivate::parseHttpResponse(const QList<QPair<QByteArray, QByteArray> > &values, bool isProxy)
 {
@@ -397,8 +381,6 @@ void QAuthenticatorPrivate::parseHttpResponse(const QList<QPair<QByteArray, QByt
         }
     }
 
-    // Reparse credentials since we know the method now
-    updateCredentials();
     challenge = headerVal.trimmed();
     QHash<QByteArray, QByteArray> options = parseDigestAuthenticationChallenge(challenge);
 

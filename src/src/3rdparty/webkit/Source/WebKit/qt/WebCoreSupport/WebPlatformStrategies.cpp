@@ -117,6 +117,8 @@ void WebPlatformStrategies::getPluginInfo(const WebCore::Page* page, Vector<WebC
     PluginDatabase* db = PluginDatabase::installedPlugins();
     const Vector<PluginPackage*> &plugins = db->plugins();
 
+    outPlugins.resize(plugins.size());
+
     for (unsigned int i = 0; i < plugins.size(); ++i) {
         PluginInfo info;
         PluginPackage* package = plugins[i];

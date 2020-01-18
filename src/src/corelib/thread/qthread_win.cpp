@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -96,11 +96,6 @@ Q_DESTRUCTOR_FUNCTION(qt_free_tls)
 /*
     QThreadData
 */
-void QThreadData::clearCurrentThreadData()
-{
-    TlsSetValue(qt_current_thread_data_tls_index, 0);
-}
-
 QThreadData *QThreadData::current()
 {
     qt_create_tls();
@@ -130,7 +125,7 @@ QThreadData *QThreadData::current()
             threadData->deref();
         }
         threadData->isAdopted = true;
-        threadData->threadId = reinterpret_cast<Qt::HANDLE>(GetCurrentThreadId());
+        threadData->threadId = (Qt::HANDLE)GetCurrentThreadId();
 
         if (!QCoreApplicationPrivate::theMainThread) {
             QCoreApplicationPrivate::theMainThread = threadData->thread;
@@ -145,7 +140,7 @@ QThreadData *QThreadData::current()
                     FALSE,
                     DUPLICATE_SAME_ACCESS);
 #else
-                        realHandle = reinterpret_cast<HANDLE>(GetCurrentThreadId());
+                        realHandle = (HANDLE)GetCurrentThreadId();
 #endif
             qt_watch_adopted_thread(realHandle, threadData->thread);
         }
@@ -217,11 +212,7 @@ DWORD WINAPI qt_adopted_thread_watcher_function(LPVOID)
         qt_adopted_thread_watcher_mutex.unlock();
 
         DWORD ret = WAIT_TIMEOUT;
-        int count;
-        int offset;
-        int loops = handlesCopy.size() / MAXIMUM_WAIT_OBJECTS;
-        if (handlesCopy.size() % MAXIMUM_WAIT_OBJECTS)
-            ++loops;
+        int loops = (handlesCopy.count() / MAXIMUM_WAIT_OBJECTS) + 1, offset, count;
         if (loops == 1) {
             // no need to loop, no timeout
             offset = 0;
@@ -318,9 +309,7 @@ void qt_set_thread_name(HANDLE threadId, LPCSTR threadName)
 
 void QThreadPrivate::createEventDispatcher(QThreadData *data)
 {
-    QMutexLocker l(&data->postEventList.mutex);
     data->eventDispatcher = new QEventDispatcherWin32;
-    l.unlock();
     data->eventDispatcher->startingUp();
 }
 
@@ -333,7 +322,7 @@ unsigned int __stdcall QT_ENSURE_STACK_ALIGNED_FOR_SSE QThreadPrivate::start(voi
 
     qt_create_tls();
     TlsSetValue(qt_current_thread_data_tls_index, data);
-    data->threadId = reinterpret_cast<Qt::HANDLE>(GetCurrentThreadId());
+    data->threadId = (Qt::HANDLE)GetCurrentThreadId();
 
     QThread::setTerminationEnabled(false);
 
@@ -408,7 +397,7 @@ void QThreadPrivate::finish(void *arg, bool lockAnyway)
 
 Qt::HANDLE QThread::currentThreadId()
 {
-    return reinterpret_cast<Qt::HANDLE>(GetCurrentThreadId());
+    return (Qt::HANDLE)GetCurrentThreadId();
 }
 
 int QThread::idealThreadCount()

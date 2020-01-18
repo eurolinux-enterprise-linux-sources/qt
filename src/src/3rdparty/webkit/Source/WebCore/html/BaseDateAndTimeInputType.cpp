@@ -102,7 +102,9 @@ bool BaseDateAndTimeInputType::supportsRangeLimitation() const
 double BaseDateAndTimeInputType::defaultValueForStepUp() const
 {
     double ms = currentTimeMS();
-    int offset = calculateLocalTimeOffset(ms).offset / msPerMinute;
+    double utcOffset = calculateUTCOffset();
+    double dstOffset = calculateDSTOffset(ms, utcOffset);
+    int offset = static_cast<int>((utcOffset + dstOffset) / msPerMinute);
     return ms + (offset * msPerMinute);
 }
 

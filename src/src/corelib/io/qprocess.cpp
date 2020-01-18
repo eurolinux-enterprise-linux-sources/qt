@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -259,13 +259,7 @@ QProcessEnvironment &QProcessEnvironment::operator=(const QProcessEnvironment &o
 */
 bool QProcessEnvironment::operator==(const QProcessEnvironment &other) const
 {
-    if (d == other.d)
-        return true;
-    if (d && other.d) {
-        QProcessEnvironmentPrivate::OrderedMutexLocker locker(d, other.d);
-        return d->hash == other.d->hash;
-    }
-    return false;
+    return d == other.d || (d && other.d && d->hash == other.d->hash);
 }
 
 /*!
@@ -276,7 +270,6 @@ bool QProcessEnvironment::operator==(const QProcessEnvironment &other) const
 */
 bool QProcessEnvironment::isEmpty() const
 {
-    // Needs no locking, as no hash nodes are accessed
     return d ? d->hash.isEmpty() : true;
 }
 
@@ -306,10 +299,7 @@ void QProcessEnvironment::clear()
 */
 bool QProcessEnvironment::contains(const QString &name) const
 {
-    if (!d)
-        return false;
-    QProcessEnvironmentPrivate::MutexLocker locker(d);
-    return d->hash.contains(d->prepareName(name));
+    return d ? d->hash.contains(d->prepareName(name)) : false;
 }
 
 /*!
@@ -330,8 +320,7 @@ bool QProcessEnvironment::contains(const QString &name) const
 */
 void QProcessEnvironment::insert(const QString &name, const QString &value)
 {
-    // our re-impl of detach() detaches from null
-    d.detach(); // detach before prepareName()
+    // d detaches from null
     d->hash.insert(d->prepareName(name), d->prepareValue(value));
 }
 
@@ -348,10 +337,8 @@ void QProcessEnvironment::insert(const QString &name, const QString &value)
 */
 void QProcessEnvironment::remove(const QString &name)
 {
-    if (d) {
-        d.detach(); // detach before prepareName()
+    if (d)
         d->hash.remove(d->prepareName(name));
-    }
 }
 
 /*!
@@ -370,7 +357,6 @@ QString QProcessEnvironment::value(const QString &name, const QString &defaultVa
     if (!d)
         return defaultValue;
 
-    QProcessEnvironmentPrivate::MutexLocker locker(d);
     QProcessEnvironmentPrivate::Hash::ConstIterator it = d->hash.constFind(d->prepareName(name));
     if (it == d->hash.constEnd())
         return defaultValue;
@@ -393,10 +379,7 @@ QString QProcessEnvironment::value(const QString &name, const QString &defaultVa
 */
 QStringList QProcessEnvironment::toStringList() const
 {
-    if (!d)
-        return QStringList();
-    QProcessEnvironmentPrivate::MutexLocker locker(d);
-    return d->toList();
+    return d ? d->toList() : QStringList();
 }
 
 /*!
@@ -407,10 +390,7 @@ QStringList QProcessEnvironment::toStringList() const
 */
 QStringList QProcessEnvironment::keys() const
 {
-    if (!d)
-        return QStringList();
-    QProcessEnvironmentPrivate::MutexLocker locker(d);
-    return d->keys();
+    return d ? d->keys() : QStringList();
 }
 
 /*!
@@ -425,8 +405,7 @@ void QProcessEnvironment::insert(const QProcessEnvironment &e)
     if (!e.d)
         return;
 
-    // our re-impl of detach() detaches from null
-    QProcessEnvironmentPrivate::MutexLocker locker(e.d);
+    // d detaches from null
     d->insert(*e.d);
 }
 
@@ -1702,10 +1681,10 @@ QProcessEnvironment QProcess::processEnvironment() const
 bool QProcess::waitForStarted(int msecs)
 {
     Q_D(QProcess);
-    if (d->processState == QProcess::Starting)
-        return d->waitForStarted(msecs);
+    if (d->processState == QProcess::Running)
+        return true;
 
-    return d->processState == QProcess::Running;
+    return d->waitForStarted(msecs);
 }
 
 /*! \reimp

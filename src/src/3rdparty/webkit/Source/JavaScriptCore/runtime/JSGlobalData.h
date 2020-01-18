@@ -42,7 +42,6 @@
 #include "TimeoutChecker.h"
 #include "WeakRandom.h"
 #include <wtf/BumpPointerAllocator.h>
-#include <wtf/DateMath.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/RefCounted.h>
@@ -78,23 +77,21 @@ namespace JSC {
     struct HashTable;
     struct Instruction;
 
-    struct LocalTimeOffsetCache {
-        LocalTimeOffsetCache()
-            : start(0.0)
-            , end(-1.0)
-            , increment(0.0)
+    struct DSTOffsetCache {
+        DSTOffsetCache()
         {
+            reset();
         }
-
+        
         void reset()
         {
-            offset = LocalTimeOffset();
+            offset = 0.0;
             start = 0.0;
             end = -1.0;
             increment = 0.0;
         }
 
-        LocalTimeOffset offset;
+        double offset;
         double start;
         double end;
         double increment;
@@ -236,7 +233,8 @@ namespace JSC {
 
         HashSet<JSObject*> stringRecursionCheckVisitedObjects;
 
-        LocalTimeOffsetCache localTimeOffsetCache;
+        double cachedUTCOffset;
+        DSTOffsetCache dstOffsetCache;
         
         UString cachedDateString;
         double cachedDateStringValue;

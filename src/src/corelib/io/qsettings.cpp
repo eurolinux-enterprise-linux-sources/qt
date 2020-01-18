@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -680,9 +680,6 @@ void QSettingsPrivate::iniEscapedString(const QString &str, QByteArray &result, 
 {
     bool needsQuotes = false;
     bool escapeNextIfDigit = false;
-    bool useCodec = codec && !str.startsWith(QLatin1String("@ByteArray("))
-                    && !str.startsWith(QLatin1String("@Variant("));
-
     int i;
     int startPos = result.size();
 
@@ -735,12 +732,12 @@ void QSettingsPrivate::iniEscapedString(const QString &str, QByteArray &result, 
             result += (char)ch;
             break;
         default:
-            if (ch <= 0x1F || (ch >= 0x7F && !useCodec)) {
+            if (ch <= 0x1F || (ch >= 0x7F && !codec)) {
                 result += "\\x";
                 result += QByteArray::number(ch, 16);
                 escapeNextIfDigit = true;
 #ifndef QT_NO_TEXTCODEC
-            } else if (useCodec) {
+            } else if (codec) {
                 // slow
                 result += codec->fromUnicode(str.at(i));
 #endif
@@ -2322,10 +2319,6 @@ void QConfFileSettingsPrivate::ensureSectionParsed(QConfFile *confFile,
     stored in the following registry path:
     \c{HKEY_LOCAL_MACHINE\Software\WOW6432node}.
 
-    On BlackBerry only a single file is used (see \l{Platform Limitations}).
-    If the file format is NativeFormat, this is "Settings/MySoft/Star Runner.conf"
-    in the application's home directory.
-
     If the file format is IniFormat, the following files are
     used on Unix and Mac OS X:
 
@@ -2350,10 +2343,6 @@ void QConfFileSettingsPrivate::ensureSectionParsed(QConfFile *confFile,
     %COMMON_APPDATA% path is usually \tt{C:\\Documents and
     Settings\\All Users\\Application Data}.
 
-    On BlackBerry only a single file is used (see \l{Platform Limitations}).
-    If the file format is IniFormat, this is "Settings/MySoft/Star Runner.ini"
-    in the application's home directory.
-
     On Symbian, the following files are used for both IniFormat and
     NativeFormat (in this example, we assume that the application is
     installed on the \c e-drive and its Secure ID is \c{0xECB00931}):
@@ -2374,7 +2363,7 @@ void QConfFileSettingsPrivate::ensureSectionParsed(QConfFile *confFile,
     environments.
 
     The paths for the \c .ini and \c .conf files can be changed using
-    setPath(). On Unix and Mac OS X, the user can override them by
+    setPath(). On Unix and Mac OS X, the user can override them by by
     setting the \c XDG_CONFIG_HOME environment variable; see
     setPath() for details.
 
@@ -2525,8 +2514,7 @@ void QConfFileSettingsPrivate::ensureSectionParsed(QConfFile *confFile,
        allowed to read or write outside of this sandbox. This involves the
        following limitations:
        \list
-       \o As there is only a single scope the scope is simply ignored,
-          i.e. there is no difference between SystemScope and UserScope.
+       \o As there is only a single scope the scope is simply ignored.
        \o The \l{Fallback Mechanism} is not applied, i.e. only a single
           location is considered.
        \o It is advised against setting and using custom file paths.
@@ -3651,7 +3639,6 @@ void QSettings::setPath_helper(Scope scope, const QString &organization, const Q
     QSettingsPrivate *oldPriv = d;
     QSettingsPrivate *newPriv = QSettingsPrivate::create(oldPriv->format, scope, organization, application);
     static_cast<QObjectPrivate &>(*newPriv) = static_cast<QObjectPrivate &>(*oldPriv);  // copy the QObject stuff over (hack)
-    oldPriv->threadData = 0; //     QTBUG-36908, newPriv takes ownership.
     d_ptr.reset(newPriv);
 }
 

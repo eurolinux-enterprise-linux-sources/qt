@@ -1,8 +1,7 @@
-diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.poll	2014-03-30 15:36:48.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp	2014-03-31 18:04:05.958260978 -0500
-@@ -158,13 +158,6 @@ static void qt_sa_sigchld_sigaction(int
-     }
+--- a/src/corelib/io/qprocess_unix.cpp	
++++ a/src/corelib/io/qprocess_unix.cpp	
+@@ -139,13 +139,6 @@ static void qt_sa_sigchld_handler(int signum)
+         oldAction(signum);
  }
  
 -static inline void add_fd(int &nfds, int fd, fd_set *fdset)
@@ -15,7 +14,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
  struct QProcessInfo {
      QProcess *process;
      int deathPipe;
-@@ -256,9 +249,9 @@ QProcessManager::~QProcessManager()
+@@ -231,9 +224,9 @@ QProcessManager::~QProcessManager()
  void QProcessManager::run()
  {
      forever {
@@ -28,7 +27,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
  
  #if defined (QPROCESS_DEBUG)
          qDebug() << "QProcessManager::run() waiting for children to die";
-@@ -267,8 +260,8 @@ void QProcessManager::run()
+@@ -242,8 +235,8 @@ void QProcessManager::run()
          // block forever, or until activity is detected on the dead child
          // pipe. the only other peers are the SIGCHLD signal handler, and the
          // QProcessManager destructor.
@@ -39,7 +38,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
              if (errno == EINTR)
                  continue;
              break;
-@@ -1027,17 +1020,6 @@ void QProcessPrivate::killProcess()
+@@ -992,17 +985,6 @@ void QProcessPrivate::killProcess()
          ::kill(pid_t(pid), SIGKILL);
  }
  
@@ -57,7 +56,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
  /*
     Returns the difference between msecs and elapsed. If msecs is -1,
     however, -1 is returned.
-@@ -1060,10 +1042,10 @@ bool QProcessPrivate::waitForStarted(int
+@@ -1025,10 +1007,10 @@ bool QProcessPrivate::waitForStarted(int msecs)
  	   childStartedPipe[0]);
  #endif
  
@@ -72,7 +71,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
          processError = QProcess::Timedout;
          q->setErrorString(QProcess::tr("Process operation timed out"));
  #if defined (QPROCESS_DEBUG)
-@@ -1079,6 +1061,47 @@ bool QProcessPrivate::waitForStarted(int
+@@ -1044,6 +1026,47 @@ bool QProcessPrivate::waitForStarted(int msecs)
      return startedEmitted;
  }
  
@@ -120,7 +119,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
  bool QProcessPrivate::waitForReadyRead(int msecs)
  {
      Q_Q(QProcess);
-@@ -1090,28 +1113,9 @@ bool QProcessPrivate::waitForReadyRead(i
+@@ -1055,28 +1078,9 @@ bool QProcessPrivate::waitForReadyRead(int msecs)
      stopWatch.start();
  
      forever {
@@ -151,7 +150,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
          if (ret < 0) {
              break;
          }
-@@ -1121,18 +1125,18 @@ bool QProcessPrivate::waitForReadyRead(i
+@@ -1086,18 +1090,18 @@ bool QProcessPrivate::waitForReadyRead(int msecs)
  	    return false;
  	}
  
@@ -173,7 +172,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
  	    bool canRead = _q_canReadStandardError();
              if (processChannel == QProcess::StandardError && canRead)
                  readyReadEmitted = true;
-@@ -1140,13 +1144,13 @@ bool QProcessPrivate::waitForReadyRead(i
+@@ -1105,13 +1109,13 @@ bool QProcessPrivate::waitForReadyRead(int msecs)
          if (readyReadEmitted)
              return true;
  
@@ -190,7 +189,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
      }
      return false;
  }
-@@ -1162,29 +1166,9 @@ bool QProcessPrivate::waitForBytesWritte
+@@ -1127,29 +1131,9 @@ bool QProcessPrivate::waitForBytesWritten(int msecs)
      stopWatch.start();
  
      while (!writeBuffer.isEmpty()) {
@@ -222,7 +221,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
          if (ret < 0) {
              break;
          }
-@@ -1195,24 +1179,24 @@ bool QProcessPrivate::waitForBytesWritte
+@@ -1160,24 +1144,24 @@ bool QProcessPrivate::waitForBytesWritten(int msecs)
  	    return false;
  	}
  
@@ -255,7 +254,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
      }
  
      return false;
-@@ -1229,29 +1213,9 @@ bool QProcessPrivate::waitForFinished(in
+@@ -1194,29 +1178,9 @@ bool QProcessPrivate::waitForFinished(int msecs)
      stopWatch.start();
  
      forever {
@@ -287,7 +286,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
          if (ret < 0) {
              break;
          }
-@@ -1261,20 +1225,20 @@ bool QProcessPrivate::waitForFinished(in
+@@ -1226,20 +1190,20 @@ bool QProcessPrivate::waitForFinished(int msecs)
  	    return false;
  	}
  
@@ -313,7 +312,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
              if (_q_processDied())
                  return true;
  	}
-@@ -1284,10 +1248,10 @@ bool QProcessPrivate::waitForFinished(in
+@@ -1249,10 +1213,10 @@ bool QProcessPrivate::waitForFinished(int msecs)
  
  bool QProcessPrivate::waitForWrite(int msecs)
  {
@@ -328,10 +327,9 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/io/qprocess_unix.cpp.pol
  }
  
  void QProcessPrivate::findExitCode()
-diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix.cpp.poll	2014-03-30 15:36:48.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix.cpp	2014-03-31 18:01:59.369715403 -0500
-@@ -99,4 +99,165 @@ int qt_safe_select(int nfds, fd_set *fdr
+--- a/src/corelib/kernel/qcore_unix.cpp	
++++ a/src/corelib/kernel/qcore_unix.cpp	
+@@ -103,4 +103,165 @@ int qt_safe_select(int nfds, fd_set *fdread, fd_set *fdwrite, fd_set *fdexcept,
      }
  }
  
@@ -497,10 +495,9 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix.cpp.po
 +#endif
 +
  QT_END_NAMESPACE
-diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix_p.h.poll qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix_p.h
---- qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix_p.h.poll	2014-03-30 15:36:48.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix_p.h	2014-03-31 18:01:59.370715392 -0500
-@@ -345,9 +345,42 @@ static inline pid_t qt_safe_waitpid(pid_
+--- a/src/corelib/kernel/qcore_unix_p.h	
++++ a/src/corelib/kernel/qcore_unix_p.h	
+@@ -316,9 +316,42 @@ static inline pid_t qt_safe_waitpid(pid_t pid, int *status, int options)
  
  timeval qt_gettime(); // in qelapsedtimer_mac.cpp or qtimestamp_unix.cpp
  
@@ -543,10 +540,9 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/corelib/kernel/qcore_unix_p.h.po
  // according to X/OPEN we have to define semun ourselves
  // we use prefix as on some systems sem.h will have it
  struct semid_ds;
-diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalserver_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalserver_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalserver_unix.cpp.poll	2014-03-30 15:36:49.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalserver_unix.cpp	2014-03-31 18:01:59.370715392 -0500
-@@ -208,16 +208,11 @@ void QLocalServerPrivate::_q_onNewConnec
+--- a/src/network/socket/qlocalserver_unix.cpp	
++++ a/src/network/socket/qlocalserver_unix.cpp	
+@@ -208,16 +208,11 @@ void QLocalServerPrivate::_q_onNewConnection()
  
  void QLocalServerPrivate::waitForNewConnection(int msec, bool *timedOut)
  {
@@ -567,10 +563,9 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalserver_unix
      if (-1 == result) {
          setError(QLatin1String("QLocalServer::waitForNewConnection"));
          closeServer();
-diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix.cpp.poll	2014-03-30 15:36:49.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix.cpp	2014-03-31 18:01:59.370715392 -0500
-@@ -56,10 +56,6 @@
+--- a/src/network/socket/qlocalsocket_unix.cpp	
++++ a/src/network/socket/qlocalsocket_unix.cpp	
+@@ -56,10 +56,6 @@ 
  #include <qdebug.h>
  #include <qelapsedtimer.h>
  
@@ -581,7 +576,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix
  #define QT_CONNECT_TIMEOUT 30000
  
  QT_BEGIN_NAMESPACE
-@@ -520,32 +516,17 @@ bool QLocalSocket::waitForConnected(int
+@@ -520,32 +516,17 @@ bool QLocalSocket::waitForConnected(int msec)
      if (state() != ConnectingState)
          return (state() == ConnectedState);
  
@@ -620,7 +615,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix
          if (-1 == result && errno != EINTR) {
              d->errorOccurred( QLocalSocket::UnknownSocketError,
                      QLatin1String("QLocalSocket::waitForConnected"));
-@@ -553,6 +534,11 @@ bool QLocalSocket::waitForConnected(int
+@@ -553,6 +534,11 @@ bool QLocalSocket::waitForConnected(int msec)
          }
          if (result > 0)
              d->_q_connectToSocket();
@@ -632,10 +627,9 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qlocalsocket_unix
      }
  
      return (state() == ConnectedState);
-diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qnativesocketengine_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/network/socket/qnativesocketengine_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/network/socket/qnativesocketengine_unix.cpp.poll	2014-03-30 15:36:49.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/network/socket/qnativesocketengine_unix.cpp	2014-03-31 18:01:59.371715381 -0500
-@@ -1068,48 +1068,40 @@ qint64 QNativeSocketEnginePrivate::nativ
+--- a/src/network/socket/qnativesocketengine_unix.cpp	
++++ a/src/network/socket/qnativesocketengine_unix.cpp	
+@@ -1090,48 +1090,40 @@ qint64 QNativeSocketEnginePrivate::nativeRead(char *data, qint64 maxSize)
  
  int QNativeSocketEnginePrivate::nativeSelect(int timeout, bool selectForRead) const
  {
@@ -710,10 +704,9 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/network/socket/qnativesocketengi
      return ret;
  }
  
-diff -up qt-everywhere-opensource-src-4.8.6/src/qt3support/network/q3socketdevice_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/qt3support/network/q3socketdevice_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/qt3support/network/q3socketdevice_unix.cpp.poll	2014-03-30 15:36:49.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/qt3support/network/q3socketdevice_unix.cpp	2014-03-31 18:01:59.371715381 -0500
-@@ -68,6 +68,7 @@ static inline int qt_socket_socket(int d
+--- a/src/qt3support/network/q3socketdevice_unix.cpp	
++++ a/src/qt3support/network/q3socketdevice_unix.cpp	
+@@ -68,6 +68,7 @@ static inline int qt_socket_socket(int domain, int type, int protocol)
  #endif
  
  #include "q3socketdevice.h"
@@ -721,7 +714,7 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/qt3support/network/q3socketdevic
  
  #ifndef QT_NO_NETWORK
  
-@@ -588,19 +589,10 @@ Q_LONG Q3SocketDevice::waitForMore( int
+@@ -588,19 +589,10 @@ Q_LONG Q3SocketDevice::waitForMore( int msecs, bool *timeout ) const
  {
      if ( !isValid() )
  	return -1;
@@ -744,9 +737,8 @@ diff -up qt-everywhere-opensource-src-4.8.6/src/qt3support/network/q3socketdevic
  
      if ( rv < 0 )
  	return -1;
-diff -up qt-everywhere-opensource-src-4.8.6/src/qt3support/other/q3process_unix.cpp.poll qt-everywhere-opensource-src-4.8.6/src/qt3support/other/q3process_unix.cpp
---- qt-everywhere-opensource-src-4.8.6/src/qt3support/other/q3process_unix.cpp.poll	2014-03-30 15:36:49.000000000 -0500
-+++ qt-everywhere-opensource-src-4.8.6/src/qt3support/other/q3process_unix.cpp	2014-03-31 18:01:59.372715370 -0500
+--- a/src/qt3support/other/q3process_unix.cpp	
++++ a/src/qt3support/other/q3process_unix.cpp	
 @@ -981,13 +981,10 @@ bool Q3Process::isRunning() const
  	// On heavy processing, the socket notifier for the sigchild might not
  	// have found time to fire yet.

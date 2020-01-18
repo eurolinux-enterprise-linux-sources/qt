@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -646,7 +646,14 @@ void QWindowsVistaStyle::drawPrimitive(PrimitiveElement element, const QStyleOpt
             anim->paint(painter, option);
         } else {
             QPainter *p = painter;
-            if (QWindowsXPStylePrivate::isItemViewDelegateLineEdit(widget)) {
+            QWidget *parentWidget = 0;
+            if (widget) {
+                parentWidget = widget->parentWidget();
+                if (parentWidget)
+                    parentWidget = parentWidget->parentWidget();
+            }
+            if (widget && widget->inherits("QLineEdit")
+                && parentWidget && parentWidget->inherits("QAbstractItemView")) {
                 // we try to check if this lineedit is a delegate on a QAbstractItemView-derived class.
                 QPen oldPen = p->pen();
                 // Inner white border
@@ -740,6 +747,7 @@ void QWindowsVistaStyle::drawPrimitive(PrimitiveElement element, const QStyleOpt
                 if (cg == QPalette::Normal && !(vopt->state & QStyle::State_Active))
                     cg = QPalette::Inactive;
 
+                QRect textRect = subElementRect(QStyle::SE_ItemViewItemText, option, widget);
                 QRect itemRect = subElementRect(QStyle::SE_ItemViewItemFocusRect, option, widget).adjusted(-1, 0, 1, 0);
                 itemRect.setTop(vopt->rect.top());
                 itemRect.setBottom(vopt->rect.bottom());
@@ -1071,6 +1079,9 @@ void QWindowsVistaStyle::drawControl(ControlElement element, const QStyleOption 
     case CE_ProgressBarContents:
         if (const QStyleOptionProgressBar *bar
                 = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
+            int stateId = MBI_NORMAL;
+            if (disabled)
+                stateId = MBI_DISABLED;
             bool isIndeterminate = (bar->minimum == 0 && bar->maximum == 0);
             bool vertical = false;
             bool inverted = false;
@@ -1239,20 +1250,21 @@ void QWindowsVistaStyle::drawControl(ControlElement element, const QStyleOption 
     case CE_MenuItem:
         if (const QStyleOptionMenuItem *menuitem = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
             // windows always has a check column, regardless whether we have an icon or not
-            int checkcol = 25;
+            int checkcol = 28;
             {
                 SIZE    size;
                 MARGINS margins;
                 XPThemeData theme(widget, 0, QLatin1String("MENU"), MENU_POPUPCHECKBACKGROUND, MBI_HOT);
                 pGetThemePartSize(theme.handle(), NULL, MENU_POPUPCHECK, 0, NULL,TS_TRUE, &size);
                 pGetThemeMargins(theme.handle(), NULL, MENU_POPUPCHECK, 0, TMT_CONTENTMARGINS, NULL, &margins);
-                checkcol = qMax(menuitem->maxIconWidth, int(3 + size.cx + margins.cxLeftWidth + margins.cxRightWidth));
+                checkcol = qMax(menuitem->maxIconWidth, int(6 + size.cx + margins.cxLeftWidth + margins.cxRightWidth));
             }
+            QColor darkLine = option->palette.background().color().darker(108);
+            QColor lightLine = option->palette.background().color().lighter(107);
             QRect rect = option->rect;
+            QStyleOptionMenuItem mbiCopy = *menuitem;
 
             //draw vertical menu line
-            if (option->direction == Qt::LeftToRight)
-                checkcol += rect.x();
             QPoint p1 = QStyle::visualPos(option->direction, menuitem->rect, QPoint(checkcol, rect.top()));
             QPoint p2 = QStyle::visualPos(option->direction, menuitem->rect, QPoint(checkcol, rect.bottom()));
             QRect gutterRect(p1.x(), p1.y(), 3, p2.y() - p1.y() + 1);
@@ -1272,7 +1284,7 @@ void QWindowsVistaStyle::drawControl(ControlElement element, const QStyleOption 
                 QPoint p1 = QPoint(x + checkcol, yoff);
                 QPoint p2 = QPoint(x + w + 6 , yoff);
                 stateId = MBI_HOT;
-                QRect subRect(p1.x() + (3 - menuitem->rect.x()), p1.y(), p2.x() - p1.x(), 6);
+                QRect subRect(p1.x(), p1.y(), p2.x() - p1.x(), 6);
                 subRect  = QStyle::visualRect(option->direction, option->rect, subRect );
                 XPThemeData theme2(widget, painter, QLatin1String("MENU"), MENU_POPUPSEPARATOR, stateId, subRect);
                 d->drawBackground(theme2);
@@ -1337,11 +1349,13 @@ void QWindowsVistaStyle::drawControl(ControlElement element, const QStyleOption 
 
             painter->setPen(menuitem->palette.buttonText().color());
 
-            const QColor textColor = menuitem->palette.text().color();
-            if (dis)
-                painter->setPen(textColor);
+            QColor discol;
+            if (dis) {
+                discol = menuitem->palette.text().color();
+                painter->setPen(discol);
+            }
 
-            int xm = windowsItemFrame + checkcol + windowsItemHMargin + (3 - menuitem->rect.x()) - 1;
+            int xm = windowsItemFrame + checkcol + windowsItemHMargin;
             int xpos = menuitem->rect.x() + xm;
             QRect textRect(xpos, y + windowsItemVMargin, w - xm - windowsRightBorder - tab + 1, h - 2 * windowsItemVMargin);
             QRect vTextRect = visualRect(option->direction, menuitem->rect, textRect);
@@ -1363,7 +1377,7 @@ void QWindowsVistaStyle::drawControl(ControlElement element, const QStyleOption 
                 if (menuitem->menuItemType == QStyleOptionMenuItem::DefaultItem)
                     font.setBold(true);
                 painter->setFont(font);
-                painter->setPen(textColor);
+                painter->setPen(discol);
                 painter->drawText(vTextRect, text_flags, s.left(t));
                 painter->restore();
             }
@@ -1828,31 +1842,30 @@ void QWindowsVistaStyle::drawComplexControl(ComplexControl control, const QStyle
                     pGetThemePartSize(theme.handle(), 0, theme.partId, theme.stateId, 0, TS_TRUE, &size);
                     int gw = size.cx, gh = size.cy;
 
-                    if (QSysInfo::WindowsVersion < QSysInfo::WV_WINDOWS8) {
-                        QRect gripperBounds;
-                        if (flags & State_Horizontal && ((swidth - contentsMargin.cxLeftWidth - contentsMargin.cxRightWidth) > gw)) {
-                            gripperBounds.setLeft(theme.rect.left() + swidth/2 - gw/2);
-                            gripperBounds.setTop(theme.rect.top() + sheight/2 - gh/2);
-                            gripperBounds.setWidth(gw);
-                            gripperBounds.setHeight(gh);
-                        } else if ((sheight - contentsMargin.cyTopHeight - contentsMargin.cyBottomHeight) > gh) {
-                            gripperBounds.setLeft(theme.rect.left() + swidth/2 - gw/2);
-                            gripperBounds.setTop(theme.rect.top() + sheight/2 - gh/2);
-                            gripperBounds.setWidth(gw);
-                            gripperBounds.setHeight(gh);
-                        }
 
-                        // Draw gripper if there is enough space
-                        if (!gripperBounds.isEmpty() && flags & State_Enabled) {
-                            painter->save();
-                            XPThemeData grippBackground = theme;
-                            grippBackground.partId = flags & State_Horizontal ? SBP_LOWERTRACKHORZ : SBP_LOWERTRACKVERT;
-                            theme.rect = gripperBounds;
-                            painter->setClipRegion(d->region(theme));// Only change inside the region of the gripper
-                            d->drawBackground(grippBackground);// The gutter is the grippers background
-                            d->drawBackground(theme);          // Transparent gripper ontop of background
-                            painter->restore();
-                        }
+                    QRect gripperBounds;
+                    if (flags & State_Horizontal && ((swidth - contentsMargin.cxLeftWidth - contentsMargin.cxRightWidth) > gw)) {
+                        gripperBounds.setLeft(theme.rect.left() + swidth/2 - gw/2);
+                        gripperBounds.setTop(theme.rect.top() + sheight/2 - gh/2);
+                        gripperBounds.setWidth(gw);
+                        gripperBounds.setHeight(gh);
+                    } else if ((sheight - contentsMargin.cyTopHeight - contentsMargin.cyBottomHeight) > gh) {
+                        gripperBounds.setLeft(theme.rect.left() + swidth/2 - gw/2);
+                        gripperBounds.setTop(theme.rect.top() + sheight/2 - gh/2);
+                        gripperBounds.setWidth(gw);
+                        gripperBounds.setHeight(gh);
+                    }
+
+                    // Draw gripper if there is enough space
+                    if (!gripperBounds.isEmpty() && flags & State_Enabled) {
+                        painter->save();
+                        XPThemeData grippBackground = theme;
+                        grippBackground.partId = flags & State_Horizontal ? SBP_LOWERTRACKHORZ : SBP_LOWERTRACKVERT;
+                        theme.rect = gripperBounds;
+                        painter->setClipRegion(d->region(theme));// Only change inside the region of the gripper
+                        d->drawBackground(grippBackground);// The gutter is the grippers background
+                        d->drawBackground(theme);          // Transparent gripper ontop of background
+                        painter->restore();
                     }
                 }
             }

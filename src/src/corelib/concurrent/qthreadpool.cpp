@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -59,16 +59,15 @@ inline bool operator<(const QPair<QRunnable *, int> &p, int priority)
 Q_GLOBAL_STATIC(QThreadPool, theInstance)
 
 /*
-    QThread wrapper, provides synchronization against a ThreadPool
+    QThread wrapper, provides synchronizitaion against a ThreadPool
 */
 class QThreadPoolThread : public QThread
 {
 public:
     QThreadPoolThread(QThreadPoolPrivate *manager);
     void run();
-    void registerThreadInactive();
+    void registerTheadInactive();
 
-    QWaitCondition runnableReady;
     QThreadPoolPrivate *manager;
     QRunnable *runnable;
 };
@@ -111,7 +110,7 @@ void QThreadPoolThread::run()
                     qWarning("Qt Concurrent has caught an exception thrown from a worker thread.\n"
                              "This is not supported, exceptions thrown in worker threads must be\n"
                              "caught before control returns to Qt Concurrent.");
-                    registerThreadInactive();
+                    registerTheadInactive();
                     throw;
                 }
 #endif
@@ -129,30 +128,31 @@ void QThreadPoolThread::run()
         } while (r != 0);
 
         if (manager->isExiting) {
-            registerThreadInactive();
+            registerTheadInactive();
             break;
         }
 
         // if too many threads are active, expire this thread
         bool expired = manager->tooManyThreadsActive();
         if (!expired) {
-            manager->waitingThreads.enqueue(this);
-            registerThreadInactive();
+            ++manager->waitingThreads;
+            registerTheadInactive();
             // wait for work, exiting after the expiry timeout is reached
-            runnableReady.wait(locker.mutex(), manager->expiryTimeout);
+            expired = !manager->runnableReady.wait(locker.mutex(), manager->expiryTimeout);
             ++manager->activeThreads;
-            if (manager->waitingThreads.removeOne(this))
-                expired = true;
+    
+            if (expired)
+                --manager->waitingThreads;
         }
         if (expired) {
             manager->expiredThreads.enqueue(this);
-            registerThreadInactive();
+            registerTheadInactive();
             break;
         }
     }
 }
 
-void QThreadPoolThread::registerThreadInactive()
+void QThreadPoolThread::registerTheadInactive()
 {
     if (--manager->activeThreads == 0)
         manager->noActiveThreads.wakeAll();
@@ -167,6 +167,7 @@ QThreadPoolPrivate:: QThreadPoolPrivate()
       expiryTimeout(30000),
       maxThreadCount(qAbs(QThread::idealThreadCount())),
       reservedThreads(0),
+      waitingThreads(0),
       activeThreads(0)
 { }
 
@@ -182,10 +183,10 @@ bool QThreadPoolPrivate::tryStart(QRunnable *task)
     if (activeThreadCount() >= maxThreadCount)
         return false;
 
-    if (waitingThreads.count() > 0) {
+    if (waitingThreads > 0) {
         // recycle an available thread
+        --waitingThreads;
         enqueueTask(task);
-        waitingThreads.takeFirst()->runnableReady.wakeOne();
         return true;
     }
 
@@ -217,13 +218,16 @@ void QThreadPoolPrivate::enqueueTask(QRunnable *runnable, int priority)
     QList<QPair<QRunnable *, int> >::iterator at =
         qUpperBound(queue.begin(), queue.end(), priority);
     queue.insert(at, qMakePair(runnable, priority));
+    runnableReady.wakeOne();
 }
 
 int QThreadPoolPrivate::activeThreadCount() const
 {
+    // To improve scalability this function is called without holding 
+    // the mutex lock -- keep it thread-safe.
     return (allThreads.count()
             - expiredThreads.count()
-            - waitingThreads.count()
+            - waitingThreads
             + reservedThreads);
 }
 
@@ -256,14 +260,14 @@ void QThreadPoolPrivate::startThread(QRunnable *runnable)
     thread.take()->start();
 }
 
-/*!
-    \internal
-    Makes all threads exit, waits for each thread to exit and deletes it.
+/*! \internal
+    Makes all threads exit, waits for each tread to exit and deletes it.
 */
 void QThreadPoolPrivate::reset()
 {
     QMutexLocker locker(&mutex);
     isExiting = true;
+    runnableReady.wakeAll();
 
     do {
         // make a copy of the set so that we can iterate without the lock
@@ -272,7 +276,6 @@ void QThreadPoolPrivate::reset()
         locker.unlock();
 
         foreach (QThreadPoolThread *thread, allThreadsCopy) {
-            thread->runnableReady.wakeAll();
             thread->wait();
             delete thread;
         }
@@ -281,7 +284,7 @@ void QThreadPoolPrivate::reset()
         // repeat until all newly arrived threads have also completed
     } while (!allThreads.isEmpty());
 
-    waitingThreads.clear();
+    waitingThreads = 0;
     expiredThreads.clear();
 
     isExiting = false;
@@ -329,10 +332,9 @@ bool QThreadPoolPrivate::startFrontRunnable()
     return true;
 }
 
-/*!
-    \internal
-    Searches for \a runnable in the queue, removes it from the queue and
-    runs it if found. This function does not return until the runnable
+/*! \internal
+    Seaches for \a runnable in the queue, removes it from the queue and
+    runs it if found. This functon does not return until the runnable
     has completed.
 */
 void QThreadPoolPrivate::stealRunnable(QRunnable *runnable)
@@ -469,12 +471,8 @@ void QThreadPool::start(QRunnable *runnable, int priority)
 
     Q_D(QThreadPool);
     QMutexLocker locker(&d->mutex);
-    if (!d->tryStart(runnable)) {
+    if (!d->tryStart(runnable))
         d->enqueueTask(runnable, priority);
-
-        if (!d->waitingThreads.isEmpty())
-            d->waitingThreads.takeFirst()->runnableReady.wakeOne();
-    }
 }
 
 /*!
@@ -500,11 +498,12 @@ bool QThreadPool::tryStart(QRunnable *runnable)
 
     Q_D(QThreadPool);
 
-    QMutexLocker locker(&d->mutex);
-
+    // To improve scalability perform a check on the thread count
+    // before locking the mutex.
     if (d->allThreads.isEmpty() == false && d->activeThreadCount() >= d->maxThreadCount)
         return false;
 
+    QMutexLocker locker(&d->mutex);
     return d->tryStart(runnable);
 }
 
@@ -578,7 +577,6 @@ void QThreadPool::setMaxThreadCount(int maxThreadCount)
 int QThreadPool::activeThreadCount() const
 {
     Q_D(const QThreadPool);
-    QMutexLocker locker(&d->mutex);
     return d->activeThreadCount();
 }
 

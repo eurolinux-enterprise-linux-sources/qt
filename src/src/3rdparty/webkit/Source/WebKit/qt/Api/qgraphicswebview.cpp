@@ -471,7 +471,7 @@ void QGraphicsWebViewPrivate::detachCurrentPage()
         return;
 
     page->d->view.clear();
-    page->d->client = nullptr;
+    page->d->client = 0;
 
     // if the page was created by us, we own it and need to
     // destroy it as well.

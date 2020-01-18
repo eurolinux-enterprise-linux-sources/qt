@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -95,7 +95,6 @@ QThreadData::~QThreadData()
     // the problem...
     if (this->thread == QCoreApplicationPrivate::theMainThread) {
        QCoreApplicationPrivate::theMainThread = 0;
-       QThreadData::clearCurrentThreadData();
     }
 
     QThread *t = thread;
@@ -222,26 +221,26 @@ QThreadPrivate::~QThreadPrivate()
     Another way to make code run in a separate thread, is to subclass QThread
     and reimplement run(). For example:
 
-    \snippet doc/src/snippets/code/src_corelib_thread_qthread.cpp reimpl-run
+    \snippet code/src_corelib_thread_qthread.cpp reimpl-run
 
     In that example, the thread will exit after the run function has returned.
     There will not be any event loop running in the thread unless you call
     exec().
 
-    It is important to remember that a QThread instance \l{QObject#Thread
-    Affinity}{lives in} the old thread that instantiated it, not in the
-    new thread that calls run(). This means that all of QThread's queued
-    slots will execute in the old thread. Thus, a developer who wishes to
-    invoke slots in the new thread must use the worker-object approach; new
-    slots should not be implemented directly into a subclassed QThread.
+    It is important to remember that a QThread object usually lives
+    in the thread where it was created, not in the thread that it
+    manages. This oft-overlooked detail means that a QThread's slots
+    will be executed in the context of its home thread, not in the
+    context of the thread it is managing. For this reason,
+    implementing new slots in a QThread subclass is error-prone and
+    discouraged.
 
-    When subclassing QThread, keep in mind that the constructor executes in
-    the old thread while run() executes in the new thread. If a member
-    variable is accessed from both functions, then the variable is accessed
-    from two different threads. Check that it is safe to do so.
+    \note If you interact with an object, using any technique other
+    than queued signal/slot connections (e.g. direct function calls),
+    then the usual multithreading precautions need to be taken.
 
-    \note Care must be taken when interacting with objects across different
-    threads. See \l{Synchronizing Threads} for details.
+    \note It is not possible to change the thread affinity of GUI
+    objects; they must remain in the main thread.
 
     \section1 Managing threads
 
@@ -286,7 +285,7 @@ QThreadPrivate::~QThreadPrivate()
     wait(), consider listening for the finished() signal. Instead of
     the sleep() functions, consider using QTimer.
 
-    \sa {Thread Support in Qt}, QThreadStorage, {Synchronizing Threads}
+    \sa {Thread Support in Qt}, QThreadStorage, QMutex, QSemaphore, QWaitCondition,
         {Mandelbrot Example}, {Semaphores Example}, {Wait Conditions Example}
 */
 
@@ -518,8 +517,7 @@ uint QThread::stackSize() const
     that was passed to exit(). The value returned is 0 if exit() is called via
     quit().
 
-    This function is meant to be called from within run(). It is necessary to
-    call this function to start event handling.
+    It is necessary to call this function to start event handling.
 
     \sa quit(), exit()
 */

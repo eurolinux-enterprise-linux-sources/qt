@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -260,7 +260,6 @@ static PtrWTGet ptrWTGet = 0;
 static PACKET localPacketBuf[QT_TABLET_NPACKETQSIZE];  // our own tablet packet queue.
 HCTX qt_tablet_context;  // the hardware context for the tablet (like a window handle)
 bool qt_tablet_tilt_support;
-QPointF oldHiResTabletGlobalPosF;
 
 // flags for extensions for special Languages, currently only for RTL languages
 bool qt_use_rtl_extensions = false;
@@ -586,7 +585,6 @@ static void qt_set_windows_color_resources()
         QPalette tiplabel(pal);
         tiplabel.setColor(QPalette::All, QPalette::Button, ttip);
         tiplabel.setColor(QPalette::All, QPalette::Window, ttip);
-        tiplabel.setColor(QPalette::All, QPalette::ToolTipBase, ttip);
         tiplabel.setColor(QPalette::All, QPalette::Text, ttipText);
         tiplabel.setColor(QPalette::All, QPalette::WindowText, ttipText);
         tiplabel.setColor(QPalette::All, QPalette::ButtonText, ttipText);
@@ -595,15 +593,12 @@ static void qt_set_windows_color_resources()
         tiplabel.setColor(QPalette::All, QPalette::Text, ttipText);
         tiplabel.setColor(QPalette::All, QPalette::WindowText, ttipText);
         tiplabel.setColor(QPalette::All, QPalette::ButtonText, ttipText);
-        tiplabel.setColor(QPalette::All, QPalette::ToolTipText, ttipText);
         const QColor fg = tiplabel.foreground().color(), btn = tiplabel.button().color();
         QColor disabled((fg.red()+btn.red())/2,(fg.green()+btn.green())/2,
                          (fg.blue()+btn.blue())/2);
         tiplabel.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
-        tiplabel.setColor(QPalette::Disabled, QPalette::ToolTipText, disabled);
         tiplabel.setColor(QPalette::Disabled, QPalette::Text, disabled);
         tiplabel.setColor(QPalette::Disabled, QPalette::Base, Qt::white);
-        tiplabel.setColor(QPalette::Disabled, QPalette::ToolTipBase, Qt::white);
         tiplabel.setColor(QPalette::Disabled, QPalette::BrightText, Qt::white);
         QToolTip::setPalette(tiplabel);
 #endif //QT_NO_TOOLTIP
@@ -698,6 +693,7 @@ void QApplicationPrivate::initializeWidgetPaletteHash()
     menu.setColor(QPalette::Active, QPalette::Text, menuText);
     menu.setColor(QPalette::Active, QPalette::WindowText, menuText);
     menu.setColor(QPalette::Active, QPalette::ButtonText, menuText);
+    const QColor fg = menu.foreground().color(), btn = menu.button().color();
     QColor disabled(qt_colorref2qrgb(GetSysColor(COLOR_GRAYTEXT)));
     menu.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
     menu.setColor(QPalette::Disabled, QPalette::Text, disabled);
@@ -3611,19 +3607,6 @@ bool QETWidget::translateTabletEvent(const MSG &msg, PACKET *localPacketBuf,
     int z = 0;
     qreal rotation = 0.0;
     qreal tangentialPressure;
-    // The tablet can be used in 2 different modes, depending on it settings:
-    // 1) Absolute (pen) mode:
-    //    The coordinates are scaled to the virtual desktop (by default). The user
-    //    can also choose to scale to the monitor or a region of the screen.
-    //    When entering proximity, the tablet driver snaps the mouse pointer to the
-    //    tablet position scaled to that area and keeps it in sync.
-    // 2) Relative (mouse) mode:
-    //    The pen follows the mouse. The constant 'absoluteRange' specifies the
-    //    manhattanLength difference for detecting if a tablet input device is in this mode,
-    //    in which case we snap the position to the mouse position.
-    // It seems there is no way to find out the mode programmatically, the LOGCONTEXT orgX/Y/Ext
-    // area is always the virtual desktop.
-    enum { absoluteRange = 20 };
 
     // the most common event that we get...
     t = QEvent::TabletMove;
@@ -3646,13 +3629,9 @@ bool QETWidget::translateTabletEvent(const MSG &msg, PACKET *localPacketBuf,
 #endif // QT_NO_TABLETEVENT
         prsNew = 0.0;
         QRect desktopArea = QApplication::desktop()->geometry();
-
-        // This code is to delay the tablet data one cycle to sync with the mouse location.
-        QPointF hiResTabletGlobalPosF = oldHiResTabletGlobalPosF;
-        oldHiResTabletGlobalPosF =
-            currentTabletPointer.scaleCoord(ptNew.x, ptNew.y, desktopArea.left(),
-                                            desktopArea.width(), desktopArea.top(),
-                                            desktopArea.height());
+        QPointF hiResGlobal = currentTabletPointer.scaleCoord(ptNew.x, ptNew.y, desktopArea.left(),
+                                                              desktopArea.width(), desktopArea.top(),
+                                                              desktopArea.height());
 
         if (btnNew) {
 #ifndef QT_NO_TABLETEVENT
@@ -3668,21 +3647,7 @@ bool QETWidget::translateTabletEvent(const MSG &msg, PACKET *localPacketBuf,
             t = QEvent::TabletRelease;
             button_pressed = false;
         }
-        QPoint globalPos = hiResTabletGlobalPosF.toPoint();
-
-        // Get Mouse Position and compare to tablet info
-        // Positions should be almost the same if we are in absolute
-        //  mode. If they are not, use the mouse location.
-#ifndef Q_WS_WINCE
-        POINT mouseLocationP;
-        if (GetCursorPos(&mouseLocationP)) {
-            const QPoint mouseLocation(mouseLocationP.x, mouseLocationP.y);
-            if ((mouseLocation - globalPos).manhattanLength() > absoluteRange) {
-                globalPos = mouseLocation;
-                hiResTabletGlobalPosF = globalPos;
-            }
-        }
-#endif // !Q_WS_WINCE
+        QPoint globalPos(qRound(hiResGlobal.x()), qRound(hiResGlobal.y()));
 
         if (t == QEvent::TabletPress)
         {
@@ -3749,7 +3714,7 @@ bool QETWidget::translateTabletEvent(const MSG &msg, PACKET *localPacketBuf,
             rotation = ort.orTwist;
         }
 #ifndef QT_NO_TABLETEVENT
-        QTabletEvent e(t, localPos, globalPos, hiResTabletGlobalPosF, currentTabletPointer.currentDevice,
+        QTabletEvent e(t, localPos, globalPos, hiResGlobal, currentTabletPointer.currentDevice,
                        currentTabletPointer.currentPointerType, prsNew, tiltX, tiltY,
                        tangentialPressure, rotation, z, QApplication::keyboardModifiers(), currentTabletPointer.llId);
         sendEvent = QApplication::sendSpontaneousEvent(w, &e);

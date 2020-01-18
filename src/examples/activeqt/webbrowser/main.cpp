@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the examples of the Qt Toolkit.
 **
@@ -17,8 +17,8 @@
 **     notice, this list of conditions and the following disclaimer in
 **     the documentation and/or other materials provided with the
 **     distribution.
-**   * Neither the name of The Qt Company Ltd nor the names of its
-**     contributors may be used to endorse or promote products derived
+**   * Neither the name of Digia Plc and its Subsidiary(-ies) nor the names
+**     of its contributors may be used to endorse or promote products derived
 **     from this software without specific prior written permission.
 **
 **
@@ -41,8 +41,6 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QProgressBar>
-#include <QLineEdit>
-#include <QLabel>
 #include <QStatusBar>
 #include <QMainWindow>
 #include <QAbstractEventDispatcher>
@@ -76,17 +74,12 @@ public slots:
 
 private:
     QProgressBar *pb;
-    QLineEdit *addressEdit;
 };
 //! [0] //! [1]
 
 MainWindow::MainWindow()
 {
     setupUi(this);
-
-    addressEdit = new QLineEdit;
-    tbAddress->insertWidget(actionGo, new QLabel(tr("Address")));
-    tbAddress->insertWidget(actionGo, addressEdit);
 
     connect(addressEdit, SIGNAL(returnPressed()), actionGo, SLOT(trigger()));
     connect(actionBack, SIGNAL(triggered()), WebBrowser, SLOT(GoBack()));

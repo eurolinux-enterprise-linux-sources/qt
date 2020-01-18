@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -133,15 +133,10 @@ struct NoDasher {
 
 };
 
-/*
- * The return value is the result of the clipLine() call performed at the start
- * of each of the two functions, aka "false" means completely outside the devices
- * rect.
- */
 template<DrawPixel drawPixel, class Dasher>
-static bool drawLine(QCosmeticStroker *stroker, qreal x1, qreal y1, qreal x2, qreal y2, int caps);
+static void drawLine(QCosmeticStroker *stroker, qreal x1, qreal y1, qreal x2, qreal y2, int caps);
 template<DrawPixel drawPixel, class Dasher>
-static bool drawLineAA(QCosmeticStroker *stroker, qreal x1, qreal y1, qreal x2, qreal y2, int caps);
+static void drawLineAA(QCosmeticStroker *stroker, qreal x1, qreal y1, qreal x2, qreal y2, int caps);
 
 inline void drawPixel(QCosmeticStroker *stroker, int x, int y, int coverage)
 {
@@ -305,7 +300,6 @@ void QCosmeticStroker::setup()
     ymax = deviceRect.bottom() + 2;
 
     lastPixel.x = -1;
-    lastPixel.y = -1;
 }
 
 // returns true if the whole line gets clipped away
@@ -533,8 +527,7 @@ void QCosmeticStroker::drawPath(const QVectorPath &path)
 
             QPointF p = QPointF(points[0], points[1]) * state->matrix;
             patternOffset = state->lastPen.dashOffset()*64;
-            lastPixel.x = INT_MIN;
-            lastPixel.y = INT_MIN;
+            lastPixel.x = -1;
 
             bool closed;
             const QPainterPath::ElementType *e = subPath(type, end, points, &closed);
@@ -588,8 +581,7 @@ void QCosmeticStroker::drawPath(const QVectorPath &path)
         QPointF p = QPointF(points[0], points[1]) * state->matrix;
         QPointF movedTo = p;
         patternOffset = state->lastPen.dashOffset()*64;
-        lastPixel.x = INT_MIN;
-        lastPixel.y = INT_MIN;
+        lastPixel.x = -1;
 
         const qreal *begin = points;
         const qreal *end = points + 2*path.elementCount();
@@ -610,20 +602,17 @@ void QCosmeticStroker::drawPath(const QVectorPath &path)
                 caps |= CapEnd;
 
             QCosmeticStroker::Point last = this->lastPixel;
-            bool unclipped = stroke(this, p.x(), p.y(), p2.x(), p2.y(), caps);
+            stroke(this, p.x(), p.y(), p2.x(), p2.y(), caps);
 
             /* fix for gaps in polylines with fastpen and aliased in a sequence
                of points with small distances: if current point p2 has been dropped
-               out, keep last non dropped point p.
-
-               However, if the line was completely outside the devicerect, we
-               still need to update p to avoid drawing the line after this one from
-               a bad starting position.
-            */
-            if (fastPenAliased && unclipped) {
-                if (last.x != lastPixel.x || last.y != lastPixel.y
-                    || points == begin + 2 || points == end - 2) {
-                    p = p2;
+               out, keep last non dropped point p. */
+            if (fastPenAliased) {
+                if (last.x != lastPixel.x || last.y != lastPixel.y ||
+                    points == begin + 2 || points == end - 2 ) {
+                    {
+                        p = p2;
+                    }
                 }
             } else {
                 p = p2;
@@ -731,10 +720,10 @@ static inline void capAdjust(int caps, int &x1, int &x2, int &y, int yinc)
   the drawing shifts from horizontal to vertical or back.
   */
 template<DrawPixel drawPixel, class Dasher>
-static bool drawLine(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2, qreal ry2, int caps)
+static void drawLine(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2, qreal ry2, int caps)
 {
     if (stroker->clipLine(rx1, ry1, rx2, ry2))
-        return false;
+        return;
 
     static const int half = 31;
     int x1 = toF26Dot6(rx1) + half;
@@ -824,7 +813,7 @@ static bool drawLine(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2,
     } else {
         // horizontal
         if (!dx)
-            return true;
+            return;
 
         QCosmeticStroker::Direction dir = QCosmeticStroker::LeftToRight;
 
@@ -897,15 +886,14 @@ static bool drawLine(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2,
         }
     }
     stroker->lastPixel = last;
-    return true;
 }
 
 
 template<DrawPixel drawPixel, class Dasher>
-static bool drawLineAA(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2, qreal ry2, int caps)
+static void drawLineAA(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx2, qreal ry2, int caps)
 {
     if (stroker->clipLine(rx1, ry1, rx2, ry2))
-        return false;
+        return;
 
     int x1 = toF26Dot6(rx1);
     int y1 = toF26Dot6(ry1);
@@ -979,7 +967,7 @@ static bool drawLineAA(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx
     } else {
         // horizontal
         if (!dx)
-            return true;
+            return;
 
         int yinc = F16Dot16FixedDiv(dy, dx);
 
@@ -1041,7 +1029,6 @@ static bool drawLineAA(QCosmeticStroker *stroker, qreal rx1, qreal ry1, qreal rx
             drawPixel(stroker, x, (y>>16) + 1, alpha * alphaEnd >> 6);
         }
     }
-    return true;
 }
 
 QT_END_NAMESPACE

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtXml module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -35,6 +34,7 @@
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
 **
+**
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
@@ -44,7 +44,6 @@
 #include "qbuffer.h"
 #include "qregexp.h"
 #include "qmap.h"
-#include "qhash.h"
 #include "qstack.h"
 #include <qdebug.h>
 
@@ -425,16 +424,6 @@ private:
     int     stringValueLen;
     QString emptyStr;
 
-    QHash<QString, int> literalEntitySizes;
-    // The entity at (QMap<QString,) referenced the entities at (QMap<QString,) (int>) times.
-    QHash<QString, QHash<QString, int> > referencesToOtherEntities;
-    QHash<QString, int> expandedSizes;
-    // The limit to the amount of times the DTD parsing functions can be called
-    // for the DTD currently being parsed.
-    static const int dtdRecursionLimit = 2;
-    // The maximum amount of characters an entity value may contain, after expansion.
-    static const int entityCharacterLimit = 1024;
-
     const QString &string();
     void stringClear();
     void stringAddC(QChar);
@@ -503,7 +492,6 @@ private:
     void unexpectedEof(ParseFunction where, int state);
     void parseFailed(ParseFunction where, int state);
     void pushParseState(ParseFunction function, int state);
-    bool isExpandedEntityValueTooLarge(QString *errorMessage);
 
     Q_DECLARE_PUBLIC(QXmlSimpleReader)
     QXmlSimpleReader *q_ptr;
@@ -3431,10 +3419,6 @@ bool QXmlSimpleReader::parse(const QXmlInputSource *input, bool incremental)
 {
     Q_D(QXmlSimpleReader);
 
-    d->literalEntitySizes.clear();
-    d->referencesToOtherEntities.clear();
-    d->expandedSizes.clear();
-
     if (incremental) {
         d->initIncrementalParsing();
     } else {
@@ -5034,11 +5018,6 @@ bool QXmlSimpleReaderPrivate::parseDoctype()
                 }
                 break;
             case Mup:
-                if (dtdRecursionLimit > 0 && parameterEntities.size() > dtdRecursionLimit) {
-                    reportParseError(QString::fromLatin1(
-                        "DTD parsing exceeded recursion limit of %1.").arg(dtdRecursionLimit));
-                    return false;
-                }
                 if (!parseMarkupdecl()) {
                     parseFailed(&QXmlSimpleReaderPrivate::parseDoctype, state);
                     return false;
@@ -6648,70 +6627,6 @@ bool QXmlSimpleReaderPrivate::parseChoiceSeq()
     return false;
 }
 
-bool QXmlSimpleReaderPrivate::isExpandedEntityValueTooLarge(QString *errorMessage)
-{
-    QString entityNameBuffer;
-
-    // For every entity, check how many times all entity names were referenced in its value.
-    for (QMap<QString,QString>::const_iterator toSearchIt = entities.constBegin();
-         toSearchIt != entities.constEnd();
-         ++toSearchIt) {
-        const QString &toSearch = toSearchIt.key();
-
-        // Don't check the same entities twice.
-        if (!literalEntitySizes.contains(toSearch)) {
-            // The amount of characters that weren't entity names, but literals, like 'X'.
-            QString leftOvers = entities.value(toSearch);
-            // How many times was entityName referenced by toSearch?
-            for (QMap<QString,QString>::const_iterator referencedIt = entities.constBegin();
-                 referencedIt != entities.constEnd();
-                 ++referencedIt) {
-                const QString &entityName = referencedIt.key();
-
-                for (int i = 0; i < leftOvers.size() && i != -1; ) {
-                    entityNameBuffer = QLatin1Char('&') + entityName + QLatin1Char(';');
-
-                    i = leftOvers.indexOf(entityNameBuffer, i);
-                    if (i != -1) {
-                        leftOvers.remove(i, entityName.size() + 2);
-                        // The entityName we're currently trying to find was matched in this string; increase our count.
-                        ++referencesToOtherEntities[toSearch][entityName];
-                    }
-                }
-            }
-            literalEntitySizes[toSearch] = leftOvers.size();
-        }
-    }
-
-    for (QHash<QString, QHash<QString, int> >::const_iterator entityIt = referencesToOtherEntities.constBegin();
-         entityIt != referencesToOtherEntities.constEnd();
-         ++entityIt) {
-        const QString &entity = entityIt.key();
-
-        QHash<QString, int>::iterator expandedIt = expandedSizes.find(entity);
-        if (expandedIt == expandedSizes.end()) {
-            expandedIt = expandedSizes.insert(entity, literalEntitySizes.value(entity));
-            for (QHash<QString, int>::const_iterator referenceIt = entityIt->constBegin();
-                 referenceIt != entityIt->constEnd();
-                 ++referenceIt) {
-                const QString &referenceTo = referenceIt.key();
-                const int references = referencesToOtherEntities.value(entity).value(referenceTo);
-                // The total size of an entity's value is the expanded size of all of its referenced entities, plus its literal size.
-                *expandedIt += expandedSizes.value(referenceTo) * references + literalEntitySizes.value(referenceTo) * references;
-            }
-
-            if (*expandedIt > entityCharacterLimit) {
-                if (errorMessage) {
-                    *errorMessage = QString::fromLatin1("The XML entity \"%1\" expands to a string that is too large to process (%2 characters > %3).")
-                        .arg(entity, *expandedIt, entityCharacterLimit);
-                }
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 /*
   Parse a EntityDecl [70].
 
@@ -6806,12 +6721,6 @@ bool QXmlSimpleReaderPrivate::parseEntityDecl()
         switch (state) {
             case EValue:
                 if ( !entityExist(name())) {
-                    QString errorMessage;
-                    if (isExpandedEntityValueTooLarge(&errorMessage)) {
-                        reportParseError(errorMessage);
-                        return false;
-                    }
-
                     entities.insert(name(), string());
                     if (declHnd) {
                         if (!declHnd->internalEntityDecl(name(), string())) {

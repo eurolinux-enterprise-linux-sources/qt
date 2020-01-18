@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the plugins of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -157,7 +157,11 @@ static boolean qt_fill_input_buffer(j_decompress_ptr cinfo)
     } else {
         src->bytes_in_buffer = num_read;
     }
-    return TRUE;
+#if defined(Q_OS_UNIXWARE)
+    return B_TRUE;
+#else
+    return true;
+#endif
 }
 
 static void qt_skip_input_data(j_decompress_ptr cinfo, long num_bytes)
@@ -485,7 +489,11 @@ static boolean qt_empty_output_buffer(j_compress_ptr cinfo)
     dest->next_output_byte = dest->buffer;
     dest->free_in_buffer = max_buf;
 
-    return TRUE;
+#if defined(Q_OS_UNIXWARE)
+    return B_TRUE;
+#else
+    return true;
+#endif
 }
 
 static void qt_term_destination(j_compress_ptr cinfo)
@@ -576,8 +584,13 @@ static bool write_jpeg_image(const QImage &image, QIODevice *device, int sourceQ
 
 
         int quality = sourceQuality >= 0 ? qMin(sourceQuality,100) : 75;
-        jpeg_set_quality(&cinfo, quality, TRUE /* limit to baseline-JPEG values */);
-        jpeg_start_compress(&cinfo, TRUE);
+#if defined(Q_OS_UNIXWARE)
+        jpeg_set_quality(&cinfo, quality, B_TRUE /* limit to baseline-JPEG values */);
+        jpeg_start_compress(&cinfo, B_TRUE);
+#else
+        jpeg_set_quality(&cinfo, quality, true /* limit to baseline-JPEG values */);
+        jpeg_start_compress(&cinfo, true);
+#endif
 
         row_pointer[0] = new uchar[cinfo.image_width*cinfo.input_components];
         int w = cinfo.image_width;
@@ -738,7 +751,11 @@ bool QJpegHandlerPrivate::readJpegHeader(QIODevice *device)
         err.error_exit = my_error_exit;
 
         if (!setjmp(err.setjmp_buffer)) {
-            (void) jpeg_read_header(&info, TRUE);
+    #if defined(Q_OS_UNIXWARE)
+            (void) jpeg_read_header(&info, B_TRUE);
+    #else
+            (void) jpeg_read_header(&info, true);
+    #endif
 
             int width = 0;
             int height = 0;

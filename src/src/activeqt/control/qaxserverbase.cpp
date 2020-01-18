@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the ActiveQt framework of the Qt Toolkit.
 **
@@ -17,8 +17,8 @@
 **     notice, this list of conditions and the following disclaimer in
 **     the documentation and/or other materials provided with the
 **     distribution.
-**   * Neither the name of The Qt Company Ltd nor the names of its
-**     contributors may be used to endorse or promote products derived
+**   * Neither the name of Digia Plc and its Subsidiary(-ies) nor the names
+**     of its contributors may be used to endorse or promote products derived
 **     from this software without specific prior written permission.
 **
 **
@@ -495,30 +495,25 @@ class QAxSignalVec : public IEnumConnectionPoints
 {
 public:
     QAxSignalVec(const QAxServerBase::ConnectionPoints &points)
-        : cpoints(points.values())
-        , current(0)
-    , ref(0)
+	: cpoints(points), ref(0)
     {
 	InitializeCriticalSection(&refCountSection);
-        const int count = cpoints.count();
-        for (int i = 0; i < count; ++i)
-            cpoints.at(i)->AddRef();
+	for (QAxServerBase::ConnectionPointsIterator i = cpoints.begin(); i != cpoints.end(); ++i)
+	    (*i)->AddRef();
     }
     QAxSignalVec(const QAxSignalVec &old)
-        : cpoints(old.cpoints)
-        , current(old.current)
     {
 	InitializeCriticalSection(&refCountSection);
 	ref = 0;
-        const int count = cpoints.count();
-        for (int i = 0; i < count; ++i)
-            cpoints.at(i)->AddRef();
+	cpoints = old.cpoints;
+	for (QAxServerBase::ConnectionPointsIterator i = cpoints.begin(); i != cpoints.end(); ++i)
+	    (*i)->AddRef();
+	it = old.it;
     }
     ~QAxSignalVec()
     {
-        const int count = cpoints.count();
-        for (int i = 0; i < count; ++i)
-            cpoints.at(i)->Release();
+	for (QAxServerBase::ConnectionPointsIterator i = cpoints.begin(); i != cpoints.end(); ++i)
+	    (*i)->Release();
 
 	DeleteCriticalSection(&refCountSection);
     }
@@ -544,8 +539,6 @@ public:
     }
     STDMETHOD(QueryInterface)(REFIID iid, void **iface)
     {
-        if (!iface)
-            return E_POINTER;
 	*iface = 0;
 	if (iid == IID_IUnknown)
 	    *iface = this;
@@ -559,54 +552,44 @@ public:
     }
     STDMETHOD(Next)(ULONG cConnections, IConnectionPoint **cpoint, ULONG *pcFetched)
     {
-        if (!cpoint)
-            return E_POINTER;
-
-        if (!pcFetched && cConnections > 1)
-            return E_POINTER;
-
-        const int count = cpoints.count();
 	unsigned long i;
 	for (i = 0; i < cConnections; i++) {
-        if (current==count)
+	    if (it == cpoints.end())
 		break;
-        IConnectionPoint *cp = cpoints.at(current);
+	    IConnectionPoint *cp = *it;
 	    cp->AddRef();
 	    cpoint[i] = cp;
-        ++current;
+	    ++it;
 	}
-        if (pcFetched)
 	*pcFetched = i;
 	return i == cConnections ? S_OK : S_FALSE;
     }
     STDMETHOD(Skip)(ULONG cConnections)
     {
-        const int count = cpoints.count();
 	while (cConnections) {
-        if (current == count)
-            return S_FALSE;
-        ++current;
+	    ++it;
 	    --cConnections;
+	    if (it == cpoints.end())
+		return S_FALSE;
 	}
 	return S_OK;
     }
     STDMETHOD(Reset)()
     {
-        current = 0;
+	it = cpoints.begin();
+
 	return S_OK;
     }
     STDMETHOD(Clone)(IEnumConnectionPoints **ppEnum)
     {
-        if (!ppEnum)
-            return E_POINTER;
 	*ppEnum = new QAxSignalVec(*this);
 	(*ppEnum)->AddRef();
 
 	return S_OK;
     }
 
-    QList<IConnectionPoint*> cpoints;
-    int current;
+    QAxServerBase::ConnectionPoints cpoints;
+    QAxServerBase::ConnectionPointsIterator it;
 
 private:
     CRITICAL_SECTION refCountSection;
@@ -625,16 +608,16 @@ public:
     typedef QList<CONNECTDATA>::Iterator Iterator;
 
     QAxConnection(QAxServerBase *parent, const QUuid &uuid)
-        : that(parent), iid(uuid), current(0), ref(1)
+	: that(parent), iid(uuid), ref(1)
     {
 	InitializeCriticalSection(&refCountSection);
     }
     QAxConnection(const QAxConnection &old)
-        : current(old.current)
     {
 	InitializeCriticalSection(&refCountSection);
 	ref = 0;
 	connections = old.connections;
+	it = old.it;
 	that = old.that;
 	iid = old.iid;
 	QList<CONNECTDATA>::Iterator it = connections.begin();
@@ -670,8 +653,6 @@ public:
     }
     STDMETHOD(QueryInterface)(REFIID iid, void **iface)
     {
-        if (!iface)
-            return E_POINTER;
 	*iface = 0;
 	if (iid == IID_IUnknown)
 	    *iface = (IConnectionPoint*)this;
@@ -696,9 +677,6 @@ public:
     }
     STDMETHOD(Advise)(IUnknown*pUnk, DWORD *pdwCookie)
     {
-        if (!pUnk || !pdwCookie)
-            return E_POINTER;
-
 	{
 	    IDispatch *checkImpl = 0;
 	    pUnk->QueryInterface(iid, (void**)&checkImpl);
@@ -712,26 +690,26 @@ public:
 	cd.pUnk = pUnk;
 	cd.pUnk->AddRef();
 	connections.append(cd);
+
 	*pdwCookie = cd.dwCookie;
 	return S_OK;
     }
     STDMETHOD(Unadvise)(DWORD dwCookie)
     {
-        const int count = connections.count();
-        for (int i = 0; i < count; ++i) {
-            if (connections.at(i).dwCookie == dwCookie) {
-                connections.removeAt(i);
-                if (current >= i && current != 0)
-                    --current;
-                return S_OK;
-            }
-        }
+	QList<CONNECTDATA>::Iterator it = connections.begin();
+	while (it != connections.end()) {
+	    CONNECTDATA cd = *it;
+	    if (cd.dwCookie == dwCookie) {
+		cd.pUnk->Release();
+		connections.erase(it);
+		return S_OK;
+	    }
+	    ++it;
+	}
 	return CONNECT_E_NOCONNECTION;
     }
     STDMETHOD(EnumConnections)(IEnumConnections **ppEnum)
     {
-        if (!ppEnum)
-            return E_POINTER;
 	*ppEnum = this;
 	AddRef();
 
@@ -739,21 +717,13 @@ public:
     }
     STDMETHOD(Next)(ULONG cConnections, CONNECTDATA *cd, ULONG *pcFetched)
     {
-        if (!cd)
-            return E_POINTER;
-
-        if (!pcFetched && cConnections > 1)
-            return E_POINTER;
-
-        const int count = connections.count();
-
 	unsigned long i;
 	for (i = 0; i < cConnections; i++) {
-        if (current == count)
+	    if (it == connections.end())
 		break;
-        cd[i] = connections.at(current);
+	    cd[i] = *it;
 	    cd[i].pUnk->AddRef();
-        ++current;
+	    ++it;
 	}
 	if (pcFetched)
 	    *pcFetched = i;
@@ -761,24 +731,22 @@ public:
     }
     STDMETHOD(Skip)(ULONG cConnections)
     {
-        const int count = connections.count();
 	while (cConnections) {
-        if (current == count)
-            return S_FALSE;
-        ++current;
+	    ++it;
 	    --cConnections;
+	    if (it == connections.end())
+		return S_FALSE;
 	}
 	return S_OK;
     }
     STDMETHOD(Reset)()
     {
-        current = 0;
+	it = connections.begin();
+
 	return S_OK;
     }
     STDMETHOD(Clone)(IEnumConnections **ppEnum)
     {
-        if (!ppEnum)
-            return E_POINTER;
 	*ppEnum = new QAxConnection(*this);
 	(*ppEnum)->AddRef();
 
@@ -789,7 +757,7 @@ private:
     QAxServerBase *that;
     QUuid iid;
     Connections connections;
-    int current;
+    Iterator it;
 
     CRITICAL_SECTION refCountSection;
     unsigned long ref;

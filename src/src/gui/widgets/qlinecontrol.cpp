@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -279,13 +279,13 @@ void QLineControl::setSelection(int start, int length)
     }
 
     if (length > 0) {
-        if (start == m_selstart && start + length == m_selend && m_cursor == m_selend)
+        if (start == m_selstart && start + length == m_selend)
             return;
         m_selstart = start;
         m_selend = qMin(start + length, (int)m_text.length());
         m_cursor = m_selend;
     } else if (length < 0){
-        if (start == m_selend && start + length == m_selstart && m_cursor == m_selstart)
+        if (start == m_selend && start + length == m_selstart)
             return;
         m_selstart = qMax(start + length, 0);
         m_selend = start;
@@ -451,7 +451,6 @@ void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
             || event->preeditString() != preeditAreaText()
             || event->replacementLength() > 0;
     bool cursorPositionChanged = false;
-    bool selectionChange = false;
 
     if (isGettingInput) {
         // If any text is being input, remove selected text.
@@ -495,7 +494,6 @@ void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
                 if (m_selend < m_selstart) {
                     qSwap(m_selstart, m_selend);
                 }
-                selectionChange = true;
             } else {
                 m_selstart = m_selend = 0;
             }
@@ -541,8 +539,6 @@ void QLineControl::processInputMethodEvent(QInputMethodEvent *event)
         emit updateMicroFocus();
     if (isGettingInput)
         finishChange(priorState);
-    if (selectionChange)
-        emit selectionChanged();
 }
 
 /*!
@@ -630,7 +626,7 @@ void QLineControl::selectWordAtPos(int cursor)
 bool QLineControl::finishChange(int validateFromState, bool update, bool edited)
 {
     Q_UNUSED(update)
-
+    bool lineDirty = m_selDirty;
     if (m_textDirty) {
         // do validation
         bool wasValidInput = m_validInput;
@@ -661,7 +657,7 @@ bool QLineControl::finishChange(int validateFromState, bool update, bool edited)
             m_textDirty = false;
         }
         updateDisplayText();
-
+        lineDirty |= m_textDirty;
         if (m_textDirty) {
             m_textDirty = false;
             QString actualText = text();
@@ -1699,7 +1695,7 @@ void QLineControl::processKeyEvent(QKeyEvent* event)
         }
     }
     else if (event == QKeySequence::Cut) {
-        if (!isReadOnly() && hasSelectedText()) {
+        if (!isReadOnly()) {
             copy();
             del();
         }

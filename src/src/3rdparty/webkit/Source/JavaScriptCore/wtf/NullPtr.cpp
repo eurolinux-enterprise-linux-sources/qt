@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "config.h"
 #include "NullPtr.h"
 
-#if !(HAVE(NULLPTR) || defined(_LIBCPP_VERSION))
+#if !HAVE(NULLPTR)
 
 std::nullptr_t nullptr;
 

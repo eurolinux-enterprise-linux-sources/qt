@@ -1,8 +1,8 @@
 
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the examples of the Qt Toolkit.
 **
@@ -18,8 +18,8 @@
 **     notice, this list of conditions and the following disclaimer in
 **     the documentation and/or other materials provided with the
 **     distribution.
-**   * Neither the name of The Qt Company Ltd nor the names of its
-**     contributors may be used to endorse or promote products derived
+**   * Neither the name of Digia Plc and its Subsidiary(-ies) nor the names
+**     of its contributors may be used to endorse or promote products derived
 **     from this software without specific prior written permission.
 **
 **
@@ -43,8 +43,6 @@
 
 #include <QtGui>
 
-bool ImageWidget::verbose = false;
-
 //! [constructor]
 ImageWidget::ImageWidget(QWidget *parent)
     : QWidget(parent),
@@ -57,16 +55,14 @@ ImageWidget::ImageWidget(QWidget *parent)
 
 {
     setMinimumSize(QSize(100,100));
+
+//! [enable gestures]
+    grabGesture(Qt::PanGesture);
+    grabGesture(Qt::PinchGesture);
+    grabGesture(Qt::SwipeGesture);
+//! [enable gestures]
 }
 //! [constructor]
-
-void ImageWidget::grabGestures(const QList<Qt::GestureType> &gestures)
-{
-    //! [enable gestures]
-    foreach (Qt::GestureType gesture, gestures)
-        grabGesture(gesture);
-    //! [enable gestures]
-}
 
 //! [event handler]
 bool ImageWidget::event(QEvent *event)
@@ -81,10 +77,10 @@ void ImageWidget::paintEvent(QPaintEvent*)
 {
     QPainter p(this);
 
-    const qreal iw = currentImage.width();
-    const qreal ih = currentImage.height();
-    const qreal wh = height();
-    const qreal ww = width();
+    float iw = currentImage.width();
+    float ih = currentImage.height();
+    float wh = height();
+    float ww = width();
 
     p.translate(ww/2, wh/2);
     p.translate(horizontalOffset, verticalOffset);
@@ -102,15 +98,11 @@ void ImageWidget::mouseDoubleClickEvent(QMouseEvent *)
     verticalOffset = 0;
     horizontalOffset = 0;
     update();
-    if (ImageWidget::verbose)
-        qDebug() << "reset on mouse double click";
 }
 
 //! [gesture event handler]
 bool ImageWidget::gestureEvent(QGestureEvent *event)
 {
-    if (ImageWidget::verbose)
-        qDebug() << "gestureEvent():" << event->gestures().size();
     if (QGesture *swipe = event->gesture(Qt::SwipeGesture))
         swipeTriggered(static_cast<QSwipeGesture *>(swipe));
     else if (QGesture *pan = event->gesture(Qt::PanGesture))
@@ -134,8 +126,6 @@ void ImageWidget::panTriggered(QPanGesture *gesture)
     }
 #endif
     QPointF delta = gesture->delta();
-    if (ImageWidget::verbose)
-        qDebug() << "panTriggered():" << delta;
     horizontalOffset += delta.x();
     verticalOffset += delta.y();
     update();
@@ -145,18 +135,13 @@ void ImageWidget::pinchTriggered(QPinchGesture *gesture)
 {
     QPinchGesture::ChangeFlags changeFlags = gesture->changeFlags();
     if (changeFlags & QPinchGesture::RotationAngleChanged) {
-        const qreal value = gesture->property("rotationAngle").toReal();
-        const qreal lastValue = gesture->property("lastRotationAngle").toReal();
-        const qreal rotationAngleDelta = value - lastValue;
-        rotationAngle += rotationAngleDelta;
-        if (ImageWidget::verbose)
-            qDebug() << "pinchTriggered(): rotation by" << rotationAngleDelta << rotationAngle;
+        qreal value = gesture->property("rotationAngle").toReal();
+        qreal lastValue = gesture->property("lastRotationAngle").toReal();
+        rotationAngle += value - lastValue;
     }
     if (changeFlags & QPinchGesture::ScaleFactorChanged) {
         qreal value = gesture->property("scaleFactor").toReal();
         currentStepScaleFactor = value;
-        if (ImageWidget::verbose)
-            qDebug() << "pinchTriggered(): " << currentStepScaleFactor;
     }
     if (gesture->state() == Qt::GestureFinished) {
         scaleFactor *= currentStepScaleFactor;
@@ -170,15 +155,10 @@ void ImageWidget::swipeTriggered(QSwipeGesture *gesture)
 {
     if (gesture->state() == Qt::GestureFinished) {
         if (gesture->horizontalDirection() == QSwipeGesture::Left
-            || gesture->verticalDirection() == QSwipeGesture::Up) {
-            if (ImageWidget::verbose)
-                qDebug() << "swipeTriggered(): swipe to previous";
+            || gesture->verticalDirection() == QSwipeGesture::Up)
             goPrevImage();
-        } else {
-            if (ImageWidget::verbose)
-                qDebug() << "swipeTriggered(): swipe to next";
+        else
             goNextImage();
-        }
         update();
     }
 }
@@ -204,23 +184,17 @@ void ImageWidget::openDirectory(const QString &path)
 
 QImage ImageWidget::loadImage(const QString &fileName)
 {
-    qDebug() << position << files << fileName;
     QImageReader reader(fileName);
-    if (ImageWidget::verbose)
-        qDebug() << "loading" << QDir::toNativeSeparators(fileName) << position << '/' << files.size();
     if (!reader.canRead()) {
-        qWarning() << QDir::toNativeSeparators(fileName) << ": can't load image";
+        qDebug() << fileName << ": can't load image";
         return QImage();
     }
 
     QImage image;
     if (!reader.read(&image)) {
-        qWarning() << QDir::toNativeSeparators(fileName) << ": corrupted image: " << reader.errorString();
+        qDebug() << fileName << ": corrupted image";
         return QImage();
     }
-    const QSize maximumSize(2000, 2000); // Reduce in case someone has large photo images.
-    if (image.size().width() > maximumSize.width() || image.height() > maximumSize.height())
-        image = image.scaled(maximumSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     return image;
 }
 
@@ -264,7 +238,7 @@ void ImageWidget::goToImage(int index)
         return;
 
     if (index < 0 || index >= files.size()) {
-        qWarning() << "goToImage: invalid index: " << index;
+        qDebug() << "goToImage: invalid index: " << index;
         return;
     }
 

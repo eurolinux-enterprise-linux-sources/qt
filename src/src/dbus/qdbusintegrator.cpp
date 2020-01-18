@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing/
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtDBus module of the Qt Toolkit.
 **
@@ -10,21 +10,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see http://www.qt.io/terms-conditions. For further
-** information use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL included in the
+** packaging of this file.  Please review the following information to
+** ensure the GNU Lesser General Public License version 2.1 requirements
+** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** As a special exception, The Qt Company gives you certain additional
-** rights. These rights are described in The Qt Company LGPL Exception
+** In addition, as a special exception, Digia gives you certain additional
+** rights.  These rights are described in the Digia Qt LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ** GNU General Public License Usage
@@ -34,6 +33,7 @@
 ** packaging of this file.  Please review the following information to
 ** ensure the GNU General Public License version 3.0 requirements will be
 ** met: http://www.gnu.org/copyleft/gpl.html.
+**
 **
 ** $QT_END_LICENSE$
 **
@@ -1766,6 +1766,7 @@ static void qDBusResultReceived(DBusPendingCall *pending, void *user_data)
 void QDBusConnectionPrivate::waitForFinished(QDBusPendingCallPrivate *pcall)
 {
     Q_ASSERT(pcall->pending);
+    Q_ASSERT(!pcall->autoDelete);
     //Q_ASSERT(pcall->mutex.isLocked()); // there's no such function
 
     if (pcall->waitingForFinished) {
@@ -1781,13 +1782,6 @@ void QDBusConnectionPrivate::waitForFinished(QDBusPendingCallPrivate *pcall)
             // QDBusConnectionPrivate::processFinishedCall() is called automatically
         }
         pcall->mutex.lock();
-
-        if (pcall->pending) {
-            q_dbus_pending_call_unref(pcall->pending);
-            pcall->pending = 0;
-        }
-
-        pcall->waitForFinishedCondition.wakeAll();
     }
 }
 
@@ -1826,10 +1820,9 @@ void QDBusConnectionPrivate::processFinishedCall(QDBusPendingCallPrivate *call)
             qDBusDebug() << "Deliver failed!";
     }
 
-    if (call->pending && !call->waitingForFinished) {
+    if (call->pending)
         q_dbus_pending_call_unref(call->pending);
-        call->pending = 0;
-    }
+    call->pending = 0;
 
     locker.unlock();
 
@@ -1840,8 +1833,10 @@ void QDBusConnectionPrivate::processFinishedCall(QDBusPendingCallPrivate *call)
     if (msg.type() == QDBusMessage::ErrorMessage)
         emit connection->callWithCallbackFailed(QDBusError(msg), call->sentMessage);
 
-    if (!call->ref.deref())
+    if (call->autoDelete) {
+        Q_ASSERT(!call->waitingForFinished); // can't wait on a call with autoDelete!
         delete call;
+    }
 }
 
 int QDBusConnectionPrivate::send(const QDBusMessage& message)
@@ -1924,7 +1919,7 @@ QDBusMessage QDBusConnectionPrivate::sendWithReply(const QDBusMessage &message,
 
         return amsg;
     } else { // use the event loop
-        QDBusPendingCallPrivate *pcall = sendWithReplyAsync(message, 0, 0, 0, timeout);
+        QDBusPendingCallPrivate *pcall = sendWithReplyAsync(message, timeout);
         Q_ASSERT(pcall);
 
         if (pcall->replyMessage.type() == QDBusMessage::InvalidMessage) {
@@ -1939,10 +1934,6 @@ QDBusMessage QDBusConnectionPrivate::sendWithReply(const QDBusMessage &message,
 
         QDBusMessage reply = pcall->replyMessage;
         lastError = reply;      // set or clear error
-
-        bool r = pcall->ref.deref();
-        Q_ASSERT(!r);
-        Q_UNUSED(r);
 
         delete pcall;
         return reply;
@@ -1983,55 +1974,19 @@ QDBusMessage QDBusConnectionPrivate::sendWithReplyLocal(const QDBusMessage &mess
 }
 
 QDBusPendingCallPrivate *QDBusConnectionPrivate::sendWithReplyAsync(const QDBusMessage &message,
-                                                                    QObject *receiver, const char *returnMethod,
-                                                                    const char *errorMethod, int timeout)
+                                                                    int timeout)
 {
     if (isServiceRegisteredByThread(message.service())) {
         // special case for local calls
         QDBusPendingCallPrivate *pcall = new QDBusPendingCallPrivate(message, this);
         pcall->replyMessage = sendWithReplyLocal(message);
-        if (receiver && returnMethod)
-            pcall->setReplyCallback(receiver, returnMethod);
 
-        if (errorMethod) {
-            pcall->watcherHelper = new QDBusPendingCallWatcherHelper;
-            connect(pcall->watcherHelper, SIGNAL(error(QDBusError,QDBusMessage)), receiver, errorMethod,
-                    Qt::QueuedConnection);
-            pcall->watcherHelper->moveToThread(thread());
-        }
-
-        if ((receiver && returnMethod) || errorMethod) {
-           // no one waiting, will delete pcall in processFinishedCall()
-           pcall->ref = 1;
-        } else {
-           // set double ref to prevent race between processFinishedCall() and ref counting
-           // by QDBusPendingCall::QExplicitlySharedDataPointer<QDBusPendingCallPrivate>
-           pcall->ref = 2;
-        }
-        processFinishedCall(pcall);
         return pcall;
     }
 
     checkThread();
     QDBusPendingCallPrivate *pcall = new QDBusPendingCallPrivate(message, this);
-    if (receiver && returnMethod)
-        pcall->setReplyCallback(receiver, returnMethod);
-
-    if (errorMethod) {
-        pcall->watcherHelper = new QDBusPendingCallWatcherHelper;
-        connect(pcall->watcherHelper, SIGNAL(error(QDBusError,QDBusMessage)), receiver, errorMethod,
-                Qt::QueuedConnection);
-        pcall->watcherHelper->moveToThread(thread());
-    }
-
-    if ((receiver && returnMethod) || errorMethod) {
-       // no one waiting, will delete pcall in processFinishedCall()
-       pcall->ref = 1;
-    } else {
-       // set double ref to prevent race between processFinishedCall() and ref counting
-       // by QDBusPendingCall::QExplicitlySharedDataPointer<QDBusPendingCallPrivate>
-       pcall->ref = 2;
-    }
+    pcall->ref = 0;
 
     QDBusError error;
     DBusMessage *msg = QDBusMessagePrivate::toDBusMessage(message, capabilities, &error);
@@ -2042,7 +1997,6 @@ QDBusPendingCallPrivate *QDBusConnectionPrivate::sendWithReplyAsync(const QDBusM
                  qPrintable(error.message()));
         pcall->replyMessage = QDBusMessage::createError(error);
         lastError = error;
-        processFinishedCall(pcall);
         return pcall;
     }
 
@@ -2068,8 +2022,44 @@ QDBusPendingCallPrivate *QDBusConnectionPrivate::sendWithReplyAsync(const QDBusM
 
     q_dbus_message_unref(msg);
     pcall->replyMessage = QDBusMessage::createError(error);
-    processFinishedCall(pcall);
     return pcall;
+}
+
+int QDBusConnectionPrivate::sendWithReplyAsync(const QDBusMessage &message, QObject *receiver,
+                                               const char *returnMethod, const char *errorMethod,
+                                               int timeout)
+{
+    QDBusPendingCallPrivate *pcall = sendWithReplyAsync(message, timeout);
+    Q_ASSERT(pcall);
+
+    // has it already finished with success (dispatched locally)?
+    if (pcall->replyMessage.type() == QDBusMessage::ReplyMessage) {
+        pcall->setReplyCallback(receiver, returnMethod);
+        processFinishedCall(pcall);
+        delete pcall;
+        return 1;
+    }
+
+    // either it hasn't finished or it has finished with error
+    if (errorMethod) {
+        pcall->watcherHelper = new QDBusPendingCallWatcherHelper;
+        connect(pcall->watcherHelper, SIGNAL(error(QDBusError,QDBusMessage)), receiver, errorMethod,
+                Qt::QueuedConnection);
+        pcall->watcherHelper->moveToThread(thread());
+    }
+
+    // has it already finished and is an error reply message?
+    if (pcall->replyMessage.type() == QDBusMessage::ErrorMessage) {
+        processFinishedCall(pcall);
+        delete pcall;
+        return 1;
+    }
+
+    pcall->autoDelete = true;
+    pcall->ref.ref();
+    pcall->setReplyCallback(receiver, returnMethod);
+
+    return 1;
 }
 
 bool QDBusConnectionPrivate::connectSignal(const QString &service,
